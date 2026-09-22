@@ -1,9 +1,30 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
 }
+
+/**
+ * Release signing material, read from `keystore.properties` at the repository root.
+ *
+ * That file is git-ignored and holds the path to a keystore that lives outside the repository
+ * entirely, so neither the private key nor its password can be committed by accident. See
+ * `keystore.properties.example` for the format and the README for how to create one.
+ *
+ * When the file is absent the release build type is left unsigned rather than failing the build:
+ * CI and anyone cloning the repository can still assemble everything, and only the person holding
+ * the key can produce a publishable APK.
+ */
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.isFile) {
+        keystorePropertiesFile.inputStream().use(::load)
+    }
+}
+val hasReleaseKeystore = keystorePropertiesFile.isFile
 
 android {
     namespace = "com.cycling.mynote"
@@ -23,11 +44,34 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            optimization {
-                enable = false
+            if (hasReleaseKeystore) {
+                signingConfig = signingConfigs.getByName("release")
             }
+
+            // R8: shrinking, obfuscation and optimisation, plus unused-resource removal.
+            // Hilt, Room and Compose all ship consumer keep rules, so this needs no hand-written
+            // keeps today; app/proguard-rules.pro exists for the ones that inevitably come up.
+            optimization {
+                enable = true
+            }
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
     compileOptions {

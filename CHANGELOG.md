@@ -72,7 +72,25 @@
 - 笔记以仓库内相对路径为标识，重新授权同一文件夹后索引仍然有效
 - 64 个 Lucide 图标由 `tools/icons/gen-icons.js` 生成为 `ImageVector`
 - 82 个 JVM 单元测试，覆盖 front matter、Markdown 解析、相对时间、字节数、文件夹树与图标构建
-- GitHub Actions：提交与 PR 时运行单元测试并构建调试包
+- GitHub Actions：提交与 PR 时运行单元测试，并构建调试包与未签名的正式包（用于验证 R8 配置）
+
+**签名与正式包**
+- 正式构建开启 R8（压缩 / 混淆 / 优化）与资源压缩，包体从 36 MB 降至约 2.9 MB
+- 签名配置从仓库外读取：`keystore.properties`（已忽略）指向仓库外的 keystore；
+  缺少该文件时正式包仍可构建，只是不签名
+- 提供 `keystore.properties.example` 与 `app/proguard-rules.pro`
+
+### 修复
+
+- 笔记库：筛选标签行紧贴搜索框、`最近更新 / 共 N 篇` 表头上下间距过窄，已按设计稿的 18dp 节奏对齐
+- 笔记库：仓库为空时不再显示 `共 0 篇` 的排序表头，空状态改为在剩余空间垂直居中
+- 编辑器：`⋯` 菜单与下方编辑区之间补齐间距，此前紧贴在一起
+- 底部导航：下边距按设计稿由 10dp 调整为 14dp
+- 空状态：内边距与元素间距按设计稿调整为 40/32 与 20dp
+- 搜索：命令面板列表改为在限高容器内滚动，此前依赖父容器的无界高度
+- 设置：卡片改用共用的 `MyNoteCard`，去掉与该组件重复的内联实现
+- 清理 6 个未被引用的组件（`MyNoteLabeledDivider`、`NoteMetaRow`、`MyNoteCaret`、
+  `MyNoteHairline`、`PreviewCheckbox` 等）与 7 个未使用的尺寸 token
 
 [Unreleased]: https://github.com/mariamjensen42-glitch/MyNote/compare/v0.0.1...HEAD
 [0.0.1]: https://github.com/mariamjensen42-glitch/MyNote/releases/tag/v0.0.1

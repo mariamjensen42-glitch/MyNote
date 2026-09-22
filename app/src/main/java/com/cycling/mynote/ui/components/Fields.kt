@@ -196,14 +196,3 @@ fun MyNoteTextField(
         },
     )
 }
-
-/** A 1.5dp accent caret, used where the design shows a static one. */
-@Composable
-fun MyNoteCaret(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .width(1.5.dp)
-            .height(18.dp)
-            .background(MyNoteTheme.colors.accent),
-    )
-}

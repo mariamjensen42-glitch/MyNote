@@ -42,6 +42,13 @@ jobs:
       - name: Assemble debug APK
         run: ./gradlew :app:assembleDebug --stacktrace
 
+      # Builds the release variant too, so the R8 configuration and keep rules are exercised on
+      # every push. It comes out unsigned here because the signing keystore is deliberately not in
+      # the repository — an unsigned release build is still a full R8 run and will fail on a bad
+      # keep rule exactly as a signed one would.
+      - name: Assemble release APK (unsigned)
+        run: ./gradlew :app:assembleRelease --stacktrace
+
       - name: Upload test report
         if: always()
         uses: actions/upload-artifact@v7

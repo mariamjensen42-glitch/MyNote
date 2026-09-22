@@ -276,7 +276,8 @@ private fun EditorMoreMenu(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = dimens.gapLarge)
+            // Bottom margin so the open menu does not sit flush against the note surface below it.
+            .padding(start = dimens.gapLarge, end = dimens.gapLarge, bottom = dimens.gapRegular)
             .clip(RoundedCornerShape(dimens.radiusMedium))
             .background(colors.surfaceSunken),
     ) {

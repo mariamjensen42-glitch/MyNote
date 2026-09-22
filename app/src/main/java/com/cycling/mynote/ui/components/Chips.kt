@@ -230,35 +230,6 @@ fun MyNoteDot(modifier: Modifier = Modifier) {
     )
 }
 
-/** A hairline separator with a centred label, used between the library's two documented states. */
-@Composable
-fun MyNoteLabeledDivider(label: String, modifier: Modifier = Modifier) {
-    val colors = MyNoteTheme.colors
-    val dimens = MyNoteTheme.dimens
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = dimens.gapLarge, vertical = dimens.gapRegular),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(dimens.gapRegular),
-    ) {
-        Box(
-            Modifier
-                .weight(1f)
-                .height(dimens.hairline)
-                .background(colors.border),
-        )
-        Text(text = label, style = MyNoteTheme.text.rowValue, color = colors.textSecondary)
-        Box(
-            Modifier
-                .weight(1f)
-                .height(dimens.hairline)
-                .background(colors.border),
-        )
-    }
-}
-
 /** A compact `全部 12` count pair used by the search screen's scope filters. */
 @Composable
 fun MyNoteScopeFilter(

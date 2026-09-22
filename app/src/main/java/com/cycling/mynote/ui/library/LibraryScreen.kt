@@ -134,7 +134,9 @@ fun LibraryScreen(
         }
 
         MyNoteChipRow(
-            modifier = Modifier.padding(horizontal = 20.dp),
+            // The screen's content column has no vertical arrangement, so each block owns its own
+            // top gap. Without this the chips sat directly against the search field.
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = dimens.gapSection),
             spacing = dimens.gapSection,
         ) {
             NoteFilter.entries.forEach { filter ->
@@ -146,29 +148,45 @@ fun LibraryScreen(
             }
         }
 
-        ListHeader(
-            sort = state.sort,
-            count = state.notes.size,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = dimens.gapExtraSmall),
-        )
+        // Nothing to sort when the repository is empty, and a `共 0 篇` header above the empty
+        // state reads as a bug.
+        if (!state.isEmptyRepo) {
+            ListHeader(
+                sort = state.sort,
+                count = state.notes.size,
+                modifier = Modifier.padding(
+                    start = 20.dp,
+                    end = 20.dp,
+                    top = dimens.gapSection,
+                    bottom = dimens.gapMedium,
+                ),
+            )
+        }
 
         Box(modifier = Modifier.weight(1f)) {
             when {
-                state.isEmptyRepo -> MyNoteEmptyState(
-                    title = stringResource(R.string.library_empty_title),
-                    body = stringResource(R.string.library_empty_body),
-                    hint = stringResource(R.string.library_empty_hint),
-                    actions = {
-                        MyNotePrimaryButton(
-                            label = stringResource(R.string.library_empty_primary),
-                            onClick = { viewModel.onEvent(LibraryEvent.CreateFirstNoteClicked) },
-                        )
-                        MyNoteSecondaryButton(
-                            label = stringResource(R.string.library_empty_secondary),
-                            onClick = { viewModel.onEvent(LibraryEvent.CreateSampleNoteClicked) },
-                        )
-                    },
-                )
+                state.isEmptyRepo -> Box(
+                    modifier = Modifier.fillMaxSize(),
+                    // The design centres the empty state in the space below the header rather than
+                    // stacking it under it.
+                    contentAlignment = Alignment.Center,
+                ) {
+                    MyNoteEmptyState(
+                        title = stringResource(R.string.library_empty_title),
+                        body = stringResource(R.string.library_empty_body),
+                        hint = stringResource(R.string.library_empty_hint),
+                        actions = {
+                            MyNotePrimaryButton(
+                                label = stringResource(R.string.library_empty_primary),
+                                onClick = { viewModel.onEvent(LibraryEvent.CreateFirstNoteClicked) },
+                            )
+                            MyNoteSecondaryButton(
+                                label = stringResource(R.string.library_empty_secondary),
+                                onClick = { viewModel.onEvent(LibraryEvent.CreateSampleNoteClicked) },
+                            )
+                        },
+                    )
+                }
 
                 state.isFilteredEmpty -> Box(
                     modifier = Modifier.fillMaxSize(),
@@ -296,8 +314,8 @@ private fun ListHeader(sort: NoteSort, count: Int, modifier: Modifier = Modifier
 
     Row(
         modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(text = sort.label, style = MyNoteTheme.text.sectionTitle, color = colors.textPrimary)
         Text(

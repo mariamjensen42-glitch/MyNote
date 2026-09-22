@@ -8,18 +8,14 @@ import androidx.compose.ui.unit.dp
 /**
  * The spacing and radius scale of the design file, named by role.
  *
- * The design only formalises three radii (`r-sm` 4, `r-md` 8, `r-lg` 14) and leaves the rest inline,
- * so the recurring inline values that several screens share are named here to keep them identical
- * across screens.
+ * The design only formalises three radii (`r-sm` 4, `r-md` 8, `r-lg` 14) and leaves the rest inline.
+ * Only the values more than one screen actually shares are named here; the rest stay as literals at
+ * their use site, where their context explains them better than a name would.
  */
 @Immutable
 data class MyNoteDimens(
     // Screen frame
-    val screenPaddingHorizontal: Dp = 20.dp,
-    val screenPaddingTop: Dp = 4.dp,
-    val screenPaddingBottom: Dp = 16.dp,
     val headerPaddingTop: Dp = 10.dp,
-    val headerPaddingBottom: Dp = 20.dp,
 
     // Cards and rows
     val cardPadding: Dp = 16.dp,
@@ -28,7 +24,6 @@ data class MyNoteDimens(
     val rowMinHeight: Dp = 48.dp,
 
     // Gaps
-    val gapHairline: Dp = 1.dp,
     val gapTiny: Dp = 2.dp,
     val gapExtraSmall: Dp = 4.dp,
     val gapSmall: Dp = 6.dp,
@@ -43,7 +38,6 @@ data class MyNoteDimens(
     // Radii
     val radiusSmall: Dp = 4.dp,
     val radiusMedium: Dp = 8.dp,
-    val radiusLarge: Dp = 14.dp,
     val radiusTab: Dp = 12.dp,
     val radiusCapsule: Dp = 18.dp,
     val radiusPill: Dp = 28.dp,
@@ -60,7 +54,6 @@ data class MyNoteDimens(
     val switchWidth: Dp = 44.dp,
     val switchHeight: Dp = 26.dp,
     val switchKnobSize: Dp = 20.dp,
-    val segmentedHeight: Dp = 26.dp,
 
     // Icon sizes
     val iconExtraSmall: Dp = 11.dp,

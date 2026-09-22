@@ -131,28 +131,6 @@ fun NoteRow(
     }
 }
 
-/** The trailing row of the note row's metadata, used on its own by the diary list. */
-@Composable
-fun NoteMetaRow(
-    timeLabel: String,
-    tags: List<String>,
-    modifier: Modifier = Modifier,
-) {
-    val colors = MyNoteTheme.colors
-    val dimens = MyNoteTheme.dimens
-
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(dimens.gapCompact),
-    ) {
-        Text(text = timeLabel, style = MyNoteTheme.text.meta, color = colors.textSecondary)
-        tags.take(2).forEach { tag ->
-            Text(text = "· $tag", style = MyNoteTheme.text.meta, color = colors.textSecondary)
-        }
-    }
-}
-
 /** A settings section heading, e.g. `笔记仓库`. */
 @Composable
 fun SectionLabel(text: String, modifier: Modifier = Modifier) {
@@ -299,19 +277,4 @@ fun ShowMoreRow(text: String, onClick: () -> Unit, modifier: Modifier = Modifier
             modifier = Modifier.size(dimens.iconCompact),
         )
     }
-}
-
-/** The trailing count column of a folder-tree row, e.g. `12` or `外部修改`. */
-@Composable
-fun TreeMeta(text: String, emphasised: Boolean, modifier: Modifier = Modifier) {
-    Text(
-        text = text,
-        style = MyNoteTheme.text.meta,
-        color = if (emphasised) {
-            MyNoteTheme.colors.accent
-        } else {
-            MyNoteTheme.colors.textTertiary
-        },
-        modifier = modifier,
-    )
 }

@@ -19,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -129,9 +130,11 @@ fun MyNoteEmptyState(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 32.dp, vertical = dimens.gapExtraLarge),
+            .padding(horizontal = 32.dp, vertical = 40.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(dimens.gapLarge),
+        // The design's gap for this block, which is wider than the screen rhythm because the
+        // elements are centred rather than left-aligned.
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         MyNoteIconTile(
             icon = icon,
@@ -164,24 +167,13 @@ fun MyNoteEmptyState(
     }
 }
 
-/** A thin, full-bleed hairline used to separate stacked blocks without a card around them. */
-@Composable
-fun MyNoteHairline(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(MyNoteTheme.colors.border)
-            .padding(top = MyNoteTheme.dimens.hairline),
-    )
-}
-
 /** An inline notice, e.g. a failed index build, shown where the affected content would be. */
 @Composable
 fun MyNoteNotice(
     message: String,
     modifier: Modifier = Modifier,
     icon: ImageVector = MyNoteIcons.alertCircle,
-    tint: androidx.compose.ui.graphics.Color = MyNoteTheme.colors.textSecondary,
+    tint: Color = MyNoteTheme.colors.textSecondary,
 ) {
     val colors = MyNoteTheme.colors
     val dimens = MyNoteTheme.dimens

@@ -64,7 +64,9 @@ fun MyNoteBottomBar(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = dimens.gapLarge, vertical = dimens.gapMedium),
+            // The design gives the tab wrap 10 above and 14 below the capsule, so the bar sits a
+            // little above the system navigation bar rather than hard against it.
+            .padding(start = dimens.gapLarge, end = dimens.gapLarge, top = dimens.gapMedium, bottom = 14.dp),
     ) {
         Row(
             modifier = Modifier

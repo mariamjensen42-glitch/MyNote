@@ -233,7 +233,7 @@ fun SaveChip(saved: Boolean, saving: Boolean, modifier: Modifier = Modifier) {
 }
 
 /**
- * A bordered card that groups settings rows.
+ * A hairline card that groups settings rows.
  *
  * The border is drawn with [Modifier.border] rather than as part of the background so it stays one
  * hairline wide regardless of the surface colour behind it.

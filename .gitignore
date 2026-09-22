@@ -18,6 +18,12 @@ local.properties
 output.json
 release/
 
+# Signing material — must never be committed. See keystore.properties.example.
+keystore.properties
+*.jks
+*.keystore
+.storepass
+
 # Native
 .externalNativeBuild/
 .cxx/

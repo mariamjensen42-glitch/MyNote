@@ -169,6 +169,10 @@ sdk.dir=/path/to/Android/Sdk
 # 调试包
 ./gradlew :app:assembleDebug
 # 产物：app/build/outputs/apk/debug/app-debug.apk
+
+# 正式包（需要签名配置，见下）
+./gradlew :app:assembleRelease
+# 产物：app/build/outputs/apk/release/app-release.apk
 ```
 
 重新生成图标（可选，产物已入库）：
@@ -176,6 +180,29 @@ sdk.dir=/path/to/Android/Sdk
 ```bash
 node tools/icons/gen-icons.js
 ```
+
+### 签名发布
+
+正式包开启 R8（压缩、混淆、优化）与资源压缩，体积从调试包的 36 MB 降到约 2.9 MB。
+
+签名材料**不进仓库**：`keystore.properties` 已被 `.gitignore` 忽略，其中指向的 keystore 建议
+放在仓库之外。没有这个文件时，`assembleRelease` 依然能跑通，只是产物未签名 —— 这样 CI 和任何
+克隆仓库的人都能构建，而只有持有密钥的人能产出可发布的包。
+
+首次准备自己的密钥：
+
+```bash
+keytool -genkeypair -v \
+  -keystore ~/.android-keystores/mynote-release.jks \
+  -alias mynote -keyalg RSA -keysize 4096 -validity 10000 \
+  -storetype PKCS12
+
+cp keystore.properties.example keystore.properties
+# 然后编辑 keystore.properties，填入上面的路径与两个密码（PKCS12 下两者相同）
+```
+
+> **务必备份 keystore 与密码**（密码管理器 + 离线副本）。密钥一旦丢失，就无法再以同一个身份
+> 为已经分发出去的 app 发布更新。
 
 ## 测试
 
@@ -208,8 +235,8 @@ node tools/icons/gen-icons.js
 - **同时只能有一个仓库**，没有多库切换。
 - **编辑器没有撤销 / 重做**（依赖输入法自身的撤销）。
 - **日记只认 `日记/yyyy-MM-dd.md`** 这一种约定；放在 `日记/` 下但命名不符的文件不会出现在日记页。
-- **发布构建未开启 R8**（沿用工程模板的 `optimization { enable = false }`），因此未压缩体积偏大。开启可显著减小，但尚未验证混淆后的运行表现。
-- **未在真机验证**：开发过程中的设备验证是在 Pixel 10 模拟器上完成的。
+- **未在真机验证**：开发过程中的设备验证是在 Pixel 10 模拟器上完成的（调试包与开启 R8 的正式包
+  都跑过完整流程）。
 
 ## 更新日志
 

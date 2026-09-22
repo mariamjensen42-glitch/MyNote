@@ -28,6 +28,7 @@ import com.cycling.mynote.core.model.EditorFont
 import com.cycling.mynote.core.model.ThemeMode
 import com.cycling.mynote.ui.components.BottomTab
 import com.cycling.mynote.ui.components.MyNoteBottomBar
+import com.cycling.mynote.ui.components.MyNoteCard
 import com.cycling.mynote.ui.components.MyNoteConfirmDialog
 import com.cycling.mynote.ui.components.MyNoteDivider
 import com.cycling.mynote.ui.components.MyNoteIconTile
@@ -211,31 +212,21 @@ fun SettingsScreen(
     SettingsDialogs(state = state, viewModel = viewModel)
 }
 
-/** A section label plus the bordered card that holds its rows. */
+/** A section label plus the card that holds its rows. */
 @Composable
 private fun SettingsSection(
     label: String?,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    val colors = MyNoteTheme.colors
     val dimens = MyNoteTheme.dimens
-    val shape = RoundedCornerShape(dimens.radiusMedium)
 
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(dimens.gapMedium),
     ) {
         if (label != null) SectionLabel(text = label)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(shape)
-                .background(colors.surface)
-                .border(1.dp, colors.border, shape),
-        ) {
-            content()
-        }
+        MyNoteCard { content() }
     }
 }
 

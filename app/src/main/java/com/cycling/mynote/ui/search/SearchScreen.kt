@@ -111,6 +111,9 @@ fun SearchScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                // Fills the rest of the screen so the command palette's list has a bounded height
+                // to scroll in instead of asking for unbounded space inside a plain Column.
+                .weight(1f)
                 .padding(start = 20.dp, end = 20.dp, top = dimens.gapLarge),
             verticalArrangement = Arrangement.spacedBy(dimens.gapLarge),
         ) {
