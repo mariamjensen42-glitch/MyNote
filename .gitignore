@@ -1,0 +1,33 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Android Studio / IntelliJ
+*.iml
+.idea/
+captures/
+.kotlin/
+
+# Android
+local.properties
+*.apk
+*.aab
+*.ap_
+*.dex
+output.json
+release/
+
+# Native
+.externalNativeBuild/
+.cxx/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Regenerated on demand by tools/icons/gen-icons.js
+tools/icons/lucide-cache/
+
+# Local tool session state — not part of the project
+.mimosa/

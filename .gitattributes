@@ -1,0 +1,22 @@
+# Normalise line endings so a Windows checkout and a CI checkout produce identical diffs.
+* text=auto eol=lf
+
+# Windows-only scripts must keep CRLF.
+*.bat text eol=crlf
+
+# Binaries: never touch.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.jar binary
+*.keystore binary
+
+# Generated sources are still text, but keep diffs focused.
+*.kt text
+*.kts text
+*.xml text
+*.toml text
+*.md text
+*.svg text

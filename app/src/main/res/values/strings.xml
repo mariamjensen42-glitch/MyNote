@@ -1,0 +1,133 @@
+<resources>
+    <string name="app_name">纸间</string>
+
+    <!-- 01 · 仓库授权 -->
+    <string name="onboarding_title">选择一个文件夹，作为你的笔记仓库</string>
+    <string name="onboarding_body">笔记就是一个个 .md 文件，存在你自己的文件夹里。App 不把内容锁进数据库，索引删掉也能随时重建。</string>
+    <string name="onboarding_granted_label">已授权目录</string>
+    <string name="onboarding_default_location">默认位置</string>
+    <string name="onboarding_last_repo">上次使用的仓库</string>
+    <string name="onboarding_use_default">使用默认位置 · Documents/Notes</string>
+    <string name="onboarding_sample_title">创建示例笔记</string>
+    <string name="onboarding_sample_subtitle">新建 Inbox.md，用一句话就能开始</string>
+    <string name="onboarding_choose_folder">选择其他文件夹</string>
+    <string name="onboarding_continue_last">继续上次的仓库 · %1$s</string>
+    <string name="onboarding_permission_hint">Android 要求由你亲自授权文件夹，所以下面会弹出系统选择器：目录已经建好，直接确认即可。</string>
+    <string name="onboarding_failed">无法访问这个文件夹，可能已被移动或撤销授权</string>
+
+    <!-- 02 · 笔记库 -->
+    <string name="library_title">笔记库</string>
+    <string name="library_subtitle">本地文件夹 · %1$d 篇笔记</string>
+    <string name="library_search_placeholder">搜索标题、标签或内容</string>
+    <string name="library_empty_title">这个仓库还是空的</string>
+    <string name="library_empty_body">笔记就是 .md 文件。新建一篇，或把已有的 Markdown 文件夹直接放进这个目录，应用会自动建立索引。</string>
+    <string name="library_empty_primary">创建第一篇笔记</string>
+    <string name="library_empty_secondary">创建示例笔记 Inbox.md</string>
+    <string name="library_empty_hint">会创建 Inbox.md 与 日记/ 文件夹，可在文件树里整理</string>
+    <string name="library_recent_updates">最近更新</string>
+    <string name="library_total">共 %1$d 篇</string>
+    <string name="library_filter_all">全部</string>
+    <string name="library_filter_recent">最近</string>
+    <string name="library_filter_tagged">标签</string>
+    <string name="library_filter_favorite">收藏</string>
+    <string name="library_filter_folder">文件夹</string>
+
+    <!-- 03 · 编辑器 -->
+    <string name="editor_mode_source">编辑</string>
+    <string name="editor_mode_split">分屏</string>
+    <string name="editor_mode_preview">预览</string>
+    <string name="editor_stats">%1$d 行 · %2$d 字</string>
+    <string name="editor_saved">已保存</string>
+    <string name="editor_saving">保存中</string>
+    <string name="editor_unsaved">未保存</string>
+    <string name="editor_tags">标签</string>
+    <string name="editor_add_tag">添加</string>
+    <string name="editor_pinned">置顶</string>
+    <string name="editor_format_badge">YAML</string>
+
+    <!-- 04 · 搜索 / 命令面板 -->
+    <string name="search_title">搜索</string>
+    <string name="search_placeholder">搜索标题、标签或内容</string>
+    <string name="search_recent">最近搜索</string>
+    <string name="search_recent_empty">还没有搜索记录</string>
+    <string name="search_empty">没有找到匹配的笔记</string>
+    <string name="search_empty_body">换个关键词，或用 “>” 打开命令面板。</string>
+    <string name="search_show_all">查看全部 %1$d 条结果</string>
+    <string name="search_command_hint">输入 “&gt;” 打开命令面板：新建笔记、重建索引…</string>
+    <string name="search_command_title">命令</string>
+
+    <!-- 05 · 设置 -->
+    <string name="settings_title">设置</string>
+    <string name="settings_subtitle">纯文本 Markdown · 无内容数据库</string>
+    <string name="settings_section_repo">笔记仓库</string>
+    <string name="settings_section_theme">主题</string>
+    <string name="settings_section_editor">编辑器</string>
+    <string name="settings_section_index">索引</string>
+    <string name="settings_section_about">关于</string>
+    <string name="settings_local_files">本地文件</string>
+    <string name="settings_repo_summary">%1$d 篇 · %2$s</string>
+    <string name="settings_change">更换</string>
+    <string name="settings_release">断开仓库</string>
+    <string name="settings_release_body">只解除本机授权，不会删除任何 .md 文件</string>
+    <string name="settings_font">字体</string>
+    <string name="settings_font_size">字号</string>
+    <string name="settings_line_height">行距</string>
+    <string name="settings_soft_wrap">软换行</string>
+    <string name="settings_auto_save">自动保存</string>
+    <string name="settings_rebuild_index">重建搜索索引</string>
+    <string name="settings_index_status">上次构建 %1$s · %2$d 篇笔记</string>
+    <string name="settings_index_never">尚未构建 · %1$d 篇笔记</string>
+    <string name="settings_index_building">正在构建索引…</string>
+    <string name="settings_about_app">关于纸间</string>
+    <string name="settings_about_body">本地优先的 Markdown 笔记。正文永远是 .md 文件，数据库只做可删除、可重建的搜索索引。</string>
+    <string name="settings_version">v%1$s</string>
+    <string name="settings_version_fallback">1.0</string>
+
+    <!-- 06 · 快速捕获 -->
+    <string name="capture_title">分享到</string>
+    <string name="capture_source">来自 %1$s · 刚刚</string>
+    <string name="capture_source_unknown">来自其他应用 · 刚刚</string>
+    <string name="capture_target_app">纸间</string>
+    <string name="capture_target_appends">追加到 · %1$s</string>
+    <string name="capture_saved">已追加到 %1$s</string>
+    <string name="capture_empty">没有可以保存的内容</string>
+
+    <!-- 07 · 文件夹树 -->
+    <string name="tree_title">文件夹</string>
+    <string name="tree_new_folder">新建文件夹</string>
+    <string name="tree_new_note">新建笔记</string>
+    <string name="tree_search_placeholder">在仓库中搜索</string>
+    <string name="tree_empty">仓库里还没有文件夹</string>
+
+    <!-- 08 · 日记 -->
+    <string name="diary_title">日记</string>
+    <string name="diary_subtitle">日记/ · %1$d 篇</string>
+    <string name="diary_today">写今天的日记</string>
+    <string name="diary_open_today">打开今天</string>
+    <string name="diary_empty_title">还没有日记</string>
+    <string name="diary_empty_body">日记按月归档在 日记/ 文件夹里，每天一个 .md 文件，用任何编辑器都能打开。</string>
+
+    <!-- 通用 -->
+    <string name="action_new_note">新建笔记</string>
+    <string name="action_new_diary">新建日记</string>
+    <string name="action_quick_capture">快速捕获</string>
+    <string name="action_retry">重试</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_confirm">确定</string>
+    <string name="action_rename">重命名</string>
+    <string name="action_move">移动</string>
+    <string name="action_delete">删除</string>
+    <string name="action_pin">置顶</string>
+    <string name="action_unpin">取消置顶</string>
+    <string name="action_favorite">收藏</string>
+    <string name="dialog_rename_title">重命名笔记</string>
+    <string name="dialog_new_folder_title">新建文件夹</string>
+    <string name="dialog_move_title">移动到</string>
+    <string name="dialog_delete_title">删除这篇笔记？</string>
+    <string name="dialog_delete_body">会从你的文件夹里删除 %1$s，这个操作无法撤销。</string>
+    <string name="dialog_name_hint">名称</string>
+    <string name="cd_back">返回</string>
+    <string name="cd_more">更多</string>
+    <string name="cd_close">关闭</string>
+    <string name="cd_folder_tree">文件夹树</string>
+</resources>

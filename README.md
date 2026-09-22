@@ -1,0 +1,216 @@
+<div align="center">
+
+# 纸间 · MyNote
+
+**本地优先的 Markdown 笔记应用。正文永远是一个个 `.md` 文件，存在你自己的文件夹里。**
+
+[![Android CI](https://github.com/mariamjensen42-glitch/MyNote/actions/workflows/android.yml/badge.svg)](https://github.com/mariamjensen42-glitch/MyNote/actions/workflows/android.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![minSdk](https://img.shields.io/badge/minSdk-31%20(Android%2012)-3DDC84.svg)](app/build.gradle.kts)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.2.10-7F52FF.svg)](https://kotlinlang.org)
+
+</div>
+
+---
+
+## 这是什么
+
+一个 Android 上的 Markdown 笔记本。它不做云端、不做账号、不做内容数据库 —— 你选一个文件夹，笔记就是那个文件夹里的 `.md` 文件：
+
+- 用任何编辑器都能打开，同步工具（Syncthing、Git、网盘）照常工作；
+- 应用只维护一份**可删除、可重建**的搜索索引，索引没了，笔记一个都不会少；
+- 卸载应用不会带走任何一篇笔记。
+
+界面与交互按一份 Pencil 设计稿（`.pen`）实现，配色、字号、间距、圆角都取自设计稿里的变量。
+
+## 截图
+
+| 选择仓库 | 笔记库 | 文件夹树 |
+|:---:|:---:|:---:|
+| ![仓库授权](docs/screenshots/01-onboarding.png) | ![笔记库](docs/screenshots/03-library.png) | ![文件夹树](docs/screenshots/02-folder-tree.png) |
+
+| 编辑器 | 搜索 | 命令面板 |
+|:---:|:---:|:---:|
+| ![编辑器](docs/screenshots/04-editor.png) | ![搜索](docs/screenshots/07-search-results.png) | ![命令面板](docs/screenshots/05-command-palette.png) |
+
+| 设置 | 日记 |
+|:---:|:---:|
+| ![设置](docs/screenshots/09-settings-about.png) | ![日记](docs/screenshots/08-diary.png) |
+
+## 功能
+
+**笔记库**
+- 列出仓库里所有 `.md` / `.markdown` 文件，显示标题、摘要、相对时间与标签
+- 筛选：全部 / 最近（7 天内）/ 标签 / 收藏 / 文件夹
+- 排序：最近更新、最早更新、标题、创建时间；置顶的笔记始终浮在最上面
+- 长按出操作条：置顶、重命名、移动、删除
+
+**编辑器**
+- 三种视图：`编辑`（带 Markdown 语法着色的源码）、`分屏`、`预览`
+- 等宽源码 + 断点自动保存（可关闭，关闭后 `⋯` 菜单里有「立即保存」）
+- 格式工具条：标题、加粗、斜体、无序 / 任务 / 有序列表、引用、代码、链接、图片，直接作用于选区
+- YAML front matter 面板：标签增删、置顶开关；未知字段原样保留
+- 行数 / 字数统计，文件名与保存状态指示
+- `⋯` 菜单：复制纯文本（去掉 Markdown 标记，方便贴进聊天窗口）、收藏、重命名、删除
+
+**搜索与命令面板**
+- 同一个输入框：输入 `>` 切到命令面板（新建笔记 / 日记 / 文件夹、重建索引、刷新、快速捕获、切换主题、打开设置）
+- 结果按**命中字段**排序：标题命中优先于标签，标签优先于正文
+- 命中片段高亮，并标注 `标题 / 内容 / 标签` 与所在文件夹
+- 中文子串搜索（见下文「为什么不用 FTS」）
+
+**文件夹树**
+- 抽屉形式，展开 / 折叠、每层笔记数、按日期筛选
+- 显示上次刷新时间与「N 处外部修改」—— 即被其他应用或同步工具改动过的文件数
+- 新建文件夹 / 新建笔记
+
+**快速捕获**
+- 系统分享目标（`ACTION_SEND`）与划词菜单（`ACTION_PROCESS_TEXT`）
+- 收到文字后可编辑，再选择「追加到 Inbox.md」或「新建笔记」
+
+**日记**
+- `日记/yyyy-MM-dd.md` 约定，按月分组；一键打开（不存在则创建）今天的日记
+
+**设置**
+- 仓库切换与断开、本地文件用量
+- 主题：浅色 / 深色 / 跟随系统
+- 编辑器：字体、字号、行距、软换行、自动保存
+- 索引：重建（全量）与只读取改动（增量）
+
+## 技术栈
+
+| | |
+|---|---|
+| 语言 / 构建 | Kotlin 2.2.10 · AGP 9.3.3（内置 Kotlin）· Gradle 9.5 · KSP 2.3.12 |
+| UI | Jetpack Compose（BOM 2026.09.00）· Material 3 仅作承载，视觉全部走自定义 token |
+| 架构 | MVI + 分层（`core` / `data` / `domain` / `ui`），单 `StateFlow` 状态对象 |
+| DI | Hilt 2.60.1（`@Binds` 绑定仓库接口，Dispatcher 走限定符注入） |
+| 存储 | Storage Access Framework（`DocumentsContract`）· Room 2.8.5（索引）· DataStore 1.2.1（偏好） |
+| 导航 | Navigation Compose 2.10.1，返回栈按 tab 保存 / 恢复 |
+| SDK | minSdk 31（Android 12）· targetSdk 36 · compileSdk 37.1 |
+| 测试 | JUnit4，82 个单元测试，0 失败 |
+
+## 架构
+
+```
+app/src/main/java/com/cycling/mynote/
+├── core/                  不含 Android 依赖的纯 Kotlin
+│   ├── model/             领域模型（Note、FrontMatter、FolderNode、SearchHit、EditorSettings…）
+│   ├── error/             DataError —— UI 需要区别对待的失败
+│   └── util/              相对时间格式化、字节数格式化
+├── data/                  实现层
+│   ├── saf/               DocumentTreeStore：全部 SAF 读写
+│   ├── markdown/          front matter / 块级 / 行内 Markdown 解析
+│   ├── index/             Room 索引与索引维护
+│   ├── repo/              扫描、路径解析、会话、默认位置
+│   ├── prefs/             DataStore
+│   ├── share/             系统分享的交接
+│   └── repository/        仓库实现（Note / Repo / Search / Settings）
+├── domain/repository/     仓库接口 —— 依赖倒置的边界
+├── di/                    Hilt 模块
+└── ui/
+    ├── mvi/               MviViewModel：事件进、状态出、副作用走 Channel
+    ├── theme/             MyNoteTheme.colors / .text / .dimens
+    ├── icons/             由 tools/icons 生成的 64 个 Lucide 图标
+    ├── components/        9 个可复用组件文件（行、按钮、标签、搜索框、弹窗、Markdown 预览…）
+    ├── navigation/        路由与图
+    └── library/ editor/ search/ diary/ settings/ capture/ onboarding/    各屏幕
+```
+
+**MVI 的取舍。** 状态是**一个不可变对象**而不是若干条独立流 —— 分开的流会让某一帧渲染出「新的笔记列表 + 旧的加载标志」。副作用（导航、提示）走 `Channel` 而不是状态，因为状态会在配置变更时重放，导航重放一次就多跳一屏。
+
+**分层的边界。** `domain` 只有接口，`data` 只有实现，`ui` 只依赖接口。因此换掉底层存储不影响任何一个 ViewModel；`core` 全是不含 Android 依赖的纯 Kotlin，可以直接在 JVM 单测里跑。
+
+## 几个关键决定
+
+这些是实现时真正需要权衡、且结果影响较大的地方，都写在了对应代码的注释里。
+
+**为什么直接用 `DocumentsContract` 而不是 `DocumentFile`。**
+`DocumentFile` 的几乎每个问题都要单独走一次 provider 查询。列出 100 个文件的文件夹，它是 100 次 IPC；`buildChildDocumentsUriUsingTree` 加一次游标查询是 1 次。而应用每次刷新都会重扫整个仓库，这个差别是决定性的。
+
+**为什么笔记用「仓库内相对路径」而不是 SAF document id 作为主键。**
+重新授权同一个文件夹时，document id 会换一批，路径不会。索引用路径作主键，用户换一次授权就不用重建索引。
+
+**为什么不用 FTS 而用 `LIKE '%词%'`。**
+笔记正文主要是中文，而 SQLite 的 FTS4 分词器（`simple` / `unicode61`）**不切分中文** —— 搜「索引」会被当成一个整 token，只有连续出现才命中。子串匹配对中文是正确的，而个人规模的仓库在一列上做扫描并不是瓶颈。这个取舍是刻意且可逆的：索引本来就是随时可删可重建的，将来换成 FTS 表只需重建，不需要迁移。
+
+**为什么不带字体文件。**
+设计稿的正文是 Inter，但稿子里绝大多数是中文，会回落到系统中文字体；如果只打包一个拉丁字形子集，中英混排会明显不一致。而系统的中文字体本身就是思源黑体 —— 正是设计稿「字体」那一项写的名字。因此字体全用平台族，并且做成可选项。
+
+**未知 front matter 字段原样保留。**
+解析器只理解 `title` / `tags` / `aliases` / `pinned` / `favorite` / `created` / `updated`，其余键按原始行存下来再原样写回。用别的工具往笔记里写元数据，在本应用里打开并保存一次不会被抹掉。
+
+**默认仓库位置。**
+首次启动默认指向 `Documents/Notes`：先通过 MediaStore（无需权限）把目录建出来，再把系统选择器**预导航**到该目录，用户确认一次即可。
+
+Android 不允许应用在未经用户确认的情况下取得共享存储某个文件夹的持久读写权 —— 这正是分区存储的意义，没有绕过的方式。因此这一步无法省掉，但可以做到只剩一次确认。这里还踩过一个坑：`EXTRA_INITIAL_URI` 必须传 **document URI**（`buildDocumentUri`），传 tree URI 会让选择器落在存储卷根目录并且提示「无法使用此文件夹」。
+
+**新建文件后立刻重扫不可靠。**
+刚创建 `Inbox.md` 就列目录，provider 对存储卷的视图会滞后，扫出来是空仓库。因此新建的内置文件按已知 id 直接入索引，再对目录列表做有限次重试。
+
+**`Compose` 里的 Markdown 语法着色用 `VisualTransformation` + `OffsetMapping.Identity`。**
+恒等映射意味着着色纯粹是装饰：光标、选区、正在输入的字符都不受某个 token 是否被高亮影响。前提是不增删字符 —— 这也是这里恒等映射正确的原因。
+
+**图标是生成的，不是依赖。**
+应用只画 64 个图标，为此引入一个 Compose 图标库会打进上千个 `ImageVector`。`tools/icons/gen-icons.js` 拉取对应的 Lucide SVG，逐个元素转换成 `ImageVector`（`node tools/icons/gen-icons.js`）。生成期会校验坐标，遇到解析不了的数据直接失败 —— 早期的 bug 正是静默产出了 `NaN` 坐标。
+
+## 构建
+
+需要 JDK 17+ 与 Android SDK（`compileSdk 37.1`）。`local.properties` 里指向 SDK：
+
+```properties
+sdk.dir=/path/to/Android/Sdk
+```
+
+```bash
+# 单元测试
+./gradlew :app:testDebugUnitTest
+
+# 调试包
+./gradlew :app:assembleDebug
+# 产物：app/build/outputs/apk/debug/app-debug.apk
+```
+
+重新生成图标（可选，产物已入库）：
+
+```bash
+node tools/icons/gen-icons.js
+```
+
+## 测试
+
+82 个单元测试全部跑在 JVM 上，覆盖最容易写错、也最值得钉死的部分：
+
+| 测试 | 覆盖 |
+|---|---|
+| `FrontMatterParserTest` | flow / 块状列表、未知键保留、引号规则、往返一致、CRLF |
+| `NoteTextExtractorTest` | 标题优先级、摘要跳过标题与代码块、行数 / 字数 |
+| `InlineMarkdownParserTest` | 强调嵌套（`**a *b* c**`）、代码段内不解析、转义、未闭合标记按字面输出 |
+| `MarkdownParserTest` | 标题、任务列表、缩进嵌套、围栏代码、引用、分隔线、不支持的语法降级为段落 |
+| `TreeEntryFactoryTest` | 抽屉展开 / 折叠、深度、根目录笔记始终可见、排序 |
+| `RelativeTimeFormatterTest` | 三种相对时间样式；「昨天」按日历天而不是 24 小时 |
+| `ByteSizeFormatterTest` | 单位与小数位 |
+| `MyNoteIconsTest` | 每个图标都能构建、视口一致、多元素图标按元素计路径 |
+
+## 图标与许可
+
+应用图标集来自 [Lucide](https://lucide.dev)（ISC 许可），经 `tools/icons/gen-icons.js` 转换为 Compose `ImageVector`。
+
+本项目采用 [MIT 许可](LICENSE)。
+
+## 已知限制
+
+诚实列一下目前**没有**做的：
+
+- **预览不支持表格、HTML、脚注**。Markdown 解析器覆盖标题、段落、列表、任务、引用、围栏代码、分隔线；其他语法会降级成段落显示，不会丢字，但也不是表格的样子。
+- **搜索是子串匹配**，没有模糊匹配、没有词干、没有按相关性打分（只有「标题 → 标签 → 正文」的字段优先级 + 时间）。
+- **工具条的「图片」只插入 `![](path)` 语法**，不会调用系统相册去选图、也不会导入图片文件。
+- **同时只能有一个仓库**，没有多库切换。
+- **编辑器没有撤销 / 重做**（依赖输入法自身的撤销）。
+- **日记只认 `日记/yyyy-MM-dd.md`** 这一种约定；放在 `日记/` 下但命名不符的文件不会出现在日记页。
+- **发布构建未开启 R8**（沿用工程模板的 `optimization { enable = false }`），因此未压缩体积偏大。开启可显著减小，但尚未验证混淆后的运行表现。
+- **未在真机验证**：开发过程中的设备验证是在 Pixel 10 模拟器上完成的。
+
+## 更新日志
+
+见 [CHANGELOG.md](CHANGELOG.md)。
