@@ -13,6 +13,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# How a release is cut: merge to main (this workflow tests it and builds the release variant), then
+# tag that same commit. The tag run skips the tests and the debug APK, because main already ran them
+# for that exact commit — re-running them would double the cost of every release for no extra signal
+# — and instead does the one thing only a tag can do: sign the APK and attach it to the release.
+# A tag on a commit that is *not* on main still gets the full run, tests included.
 permissions:
   contents: read
 
@@ -35,6 +40,9 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v7
+        with:
+          # All history and branches: the tag check below needs to see whether this commit is on main.
+          fetch-depth: 0
 
       - name: Set up JDK 21
         uses: actions/setup-java@v6
@@ -64,10 +72,25 @@ jobs:
             "$RUNNER_TEMP/release.jks" "$KEYSTORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" \
             > keystore.properties
 
+      # Is this commit already tested? Answered only for tags, because that is the only case where
+      # the same commit can arrive twice. `--is-ancestor` is deliberately the check rather than an
+      # equality: a release tagged a few commits behind main has still been tested by main.
+      - name: Has main already tested this commit?
+        id: ancestry
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          if git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "tested=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tested=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run unit tests
+        if: steps.ancestry.outputs.tested != 'true'
         run: ./gradlew :app:testDebugUnitTest --stacktrace
 
       - name: Assemble debug APK
+        if: steps.ancestry.outputs.tested != 'true'
         run: ./gradlew :app:assembleDebug --stacktrace
 
       # Signed when the key is available, unsigned otherwise — either way this exercises the R8
@@ -84,7 +107,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Upload debug APK
-        if: success()
+        if: success() && steps.ancestry.outputs.tested != 'true'
         uses: actions/upload-artifact@v7
         with:
           name: app-debug
