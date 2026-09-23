@@ -7,6 +7,44 @@
 
 ## [Unreleased]
 
+## [0.0.4] - 2026-09-23
+
+### 修复
+
+- **强调的定界符按 CommonMark 的规则判断**。此前只问「有没有配对的标记」，不问这个标记能不能开启或
+  闭合强调，于是普通文字被改丑：
+  - `2 * 3 * 4 = 6` 渲染成 `2 3 4 = 6`（星号被当作斜体标记吞掉），算式里的 `*` 跟着消失
+  - `foo__bar__baz`、`x__y__z` 词内的双下划线被当成粗体，渲染成 `foobarbaz`（中间加粗）
+  - `a * foo bar*`、`*foo bar *`、`** 空格在外 **` 这些没有合法配对的写法此前会误判
+
+  现在按规范判断左右侧（flanking）：标记后面紧跟空格不能开启强调，前面紧跟空格不能闭合；下划线在词内部
+  既不能开启也不能闭合。因此 `2 * 3 * 4` 是算式，`foo__bar__baz` 是标识符，而词首的 `__init__.py`
+  仍然按规范加粗 `init`（这一点用参考实现核对过，不是猜的）
+
+- **引用现在是容器，不再只是「带竖线的一行字」**。`>` 后面的内容剥掉一层标记后交给同一个块级解析器，
+  于是一次修好四种情况：
+  - 连续几行 `> ` 属于同一个引用（此前每行一个引用块，两条竖线中间留空隙）
+  - `> > 嵌套` 真的嵌套（此前内层 `>` 直接显示成正文）
+  - 引用里可以有列表、任务、有序列表、标题、代码块（此前 `> - [ ] 任务` 显示成字面 `- [ ] 任务`）
+  - 引用里的任务复选框可点，写回的是笔记里正确的那一行（行号随 `>` 剥除而不漂移）
+
+- **HTML 实体解码**：`&amp;` `&lt;` `&gt;` `&quot;` `&nbsp;` `&copy;` 等常见命名实体与
+  `&#65;` / `&#x41;` 这类数字实体现在会解码成对应字符；表外的命名实体按规范保持原样。
+
+- **HTML 标签不再被静默丢弃**：预览渲染不了 HTML，此前直接把 `<div …>` 从文字里抹掉，笔记里
+  写的内容凭空少了一截。现在按 CommonMark 的做法把原始标签原样当文字显示，不渲染也不吞掉。
+
+- **笔记库没有手动刷新的入口**。`RefreshRequested` 这个事件在笔记库侧一直没有任何地方发出，抽屉里那行
+  「上次刷新」只是显示文字——别的应用（同步客户端、桌面编辑器）刚写进来的笔记要等应用重启才会出现。
+  现在这一行可以点，点一下就重新扫描（标签也写明「点按刷新」）。
+
+### 变更
+
+- `MarkdownBlock.Quote` 从「深度 + 一行文字」变成「一组子块」，引用因此可以嵌套、可以装下列表与代码块；
+  预览、纯文本投影与测试同步更新
+- 行内解析器新增定界符的左右侧判断（`MarkdownSyntax.isPunctuation` 提供「Unicode 标点」这一定义）
+  与 HTML 实体解码（常见命名实体 + 数字实体）
+
 ## [0.0.3] - 2026-09-23
 
 ### 修复
@@ -196,7 +234,8 @@
 - 清理 6 个未被引用的组件（`MyNoteLabeledDivider`、`NoteMetaRow`、`MyNoteCaret`、
   `MyNoteHairline`、`PreviewCheckbox` 等）与 7 个未使用的尺寸 token
 
-[Unreleased]: https://github.com/mariamjensen42-glitch/MyNote/compare/v0.0.3...HEAD
+[Unreleased]: https://github.com/mariamjensen42-glitch/MyNote/compare/v0.0.4...HEAD
+[0.0.4]: https://github.com/mariamjensen42-glitch/MyNote/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/mariamjensen42-glitch/MyNote/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/mariamjensen42-glitch/MyNote/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/mariamjensen42-glitch/MyNote/releases/tag/v0.0.1

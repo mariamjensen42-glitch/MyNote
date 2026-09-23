@@ -1,6 +1,7 @@
 package com.cycling.mynote.markdown
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -86,10 +87,72 @@ class MarkdownParserTest {
     }
 
     @Test
-    fun `quotes are separate blocks`() {
+    fun `a quote holds the blocks its lines parse to`() {
         val blocks = MarkdownParser.parse("> 引用\n").blocks
         val quote = blocks.single() as MarkdownBlock.Quote
-        assertEquals("引用", quote.spans.joinToString("") { it.text })
+        val paragraph = quote.blocks.single() as MarkdownBlock.Paragraph
+        assertEquals("引用", paragraph.spans.joinToString("") { it.text })
+    }
+
+    @Test
+    fun `consecutive quoted lines are one quote`() {
+        // `> a` and `> b` are one blockquote whose paragraph has a soft break, not two quotes side
+        // by side with two rules between them.
+        val blocks = MarkdownParser.parse("> 第一行\n> 第二行\n").blocks
+
+        val quote = blocks.single() as MarkdownBlock.Quote
+        assertEquals("第一行\n第二行", plainText(quote))
+    }
+
+    @Test
+    fun `a blank quoted line separates paragraphs inside the quote`() {
+        val blocks = MarkdownParser.parse("> 一段\n>\n> 第二段\n").blocks
+
+        val quote = blocks.single() as MarkdownBlock.Quote
+        assertEquals(2, quote.blocks.size)
+        assertTrue(quote.blocks.all { it is MarkdownBlock.Paragraph })
+    }
+
+    @Test
+    fun `quotes nest`() {
+        val blocks = MarkdownParser.parse("> > 嵌套一层\n").blocks
+
+        val outer = blocks.single() as MarkdownBlock.Quote
+        val inner = outer.blocks.single() as MarkdownBlock.Quote
+        assertEquals("嵌套一层", plainText(inner))
+    }
+
+    @Test
+    fun `a quote holds a list, a heading and a fence`() {
+        val blocks = MarkdownParser.parse("> # 标题\n> - 列表项\n> ```\n> code\n> ```\n").blocks
+
+        val quote = blocks.single() as MarkdownBlock.Quote
+        assertTrue(quote.blocks[0] is MarkdownBlock.Heading)
+        assertTrue(quote.blocks[1] is MarkdownBlock.Bullet)
+        assertTrue(quote.blocks[2] is MarkdownBlock.Code)
+    }
+
+    @Test
+    fun `a task inside a quote reports the note's own line`() {
+        // The line is what the preview writes a toggled checkbox back to, so stripping the `>` must
+        // not shift it: the task is on line 4 of the note, quote or no quote.
+        val blocks = MarkdownParser.parse("---\nx: 1\n---\n> - [ ] 引用中的任务\n\n> 正文\n> - [x] 第二个\n").blocks
+
+        val first = (blocks[0] as MarkdownBlock.Quote).blocks.single() as MarkdownBlock.Task
+        assertEquals(3, first.line)
+        assertFalse(first.checked)
+
+        val second = (blocks[1] as MarkdownBlock.Quote).blocks
+            .filterIsInstance<MarkdownBlock.Task>()
+            .single()
+        assertEquals(6, second.line)
+        assertTrue(second.checked)
+    }
+
+    private fun plainText(block: MarkdownBlock): String = when (block) {
+        is MarkdownBlock.Paragraph -> block.spans.joinToString("") { it.text }
+        is MarkdownBlock.Quote -> block.blocks.joinToString("") { plainText(it) }
+        else -> ""
     }
 
     @Test

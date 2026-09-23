@@ -102,7 +102,11 @@ fun FolderTreeDrawer(
             onValueChange = { filterQuery = it },
         )
 
-        SyncStatusRow(state = state, timeFormatter = timeFormatter)
+        SyncStatusRow(
+            state = state,
+            timeFormatter = timeFormatter,
+            onRefresh = { onEvent(LibraryEvent.RefreshRequested) },
+        )
 
         Text(
             text = stringResource(R.string.tree_title),
@@ -252,13 +256,19 @@ private fun DrawerSearchField(value: String, onValueChange: (String) -> Unit) {
 }
 
 /**
- * The sync row.
+ * The sync row, which is also the app's refresh button.
  *
  * Reports what the app actually knows — when it last scanned and how many files changed underneath
- * it — rather than naming a sync tool the app has no relationship with.
+ * it — rather than naming a sync tool the app has no relationship with. Tapping it scans again:
+ * notes added or edited by another app (a sync client, a desktop editor) are invisible to the
+ * library until a scan runs, and without this the only way to ask for one was to restart the app.
  */
 @Composable
-private fun SyncStatusRow(state: LibraryState, timeFormatter: RelativeTimeFormatter) {
+private fun SyncStatusRow(
+    state: LibraryState,
+    timeFormatter: RelativeTimeFormatter,
+    onRefresh: () -> Unit,
+) {
     val colors = MyNoteTheme.colors
     val dimens = MyNoteTheme.dimens
 
@@ -269,11 +279,15 @@ private fun SyncStatusRow(state: LibraryState, timeFormatter: RelativeTimeFormat
         state.externalChanges > 0 -> "上次刷新 ${timeFormatter.forTreeRow(state.lastRefreshedAt)} · " +
             "${state.externalChanges} 处外部修改"
 
-        else -> "上次刷新 ${timeFormatter.forTreeRow(state.lastRefreshedAt)}"
+        else -> "上次刷新 ${timeFormatter.forTreeRow(state.lastRefreshedAt)} · 点按刷新"
     }
 
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(dimens.radiusSmall))
+            .clickable(onClick = onRefresh)
+            .padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {

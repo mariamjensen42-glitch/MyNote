@@ -91,7 +91,7 @@ object MarkdownText {
         is MarkdownBlock.Bullet -> textOf(block.spans)
         is MarkdownBlock.Ordered -> textOf(block.spans)
         is MarkdownBlock.Task -> textOf(block.spans)
-        is MarkdownBlock.Quote -> textOf(block.spans)
+        is MarkdownBlock.Quote -> block.blocks.joinToString("\n") { textOf(it) }
         is MarkdownBlock.Code -> block.lines.joinToString("\n")
         is MarkdownBlock.Table -> (listOf(block.header) + block.rows).joinToString("\n") { row ->
             row.joinToString(" ") { cell -> textOf(cell) }

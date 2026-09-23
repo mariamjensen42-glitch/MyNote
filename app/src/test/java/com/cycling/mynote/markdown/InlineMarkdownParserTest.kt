@@ -127,10 +127,62 @@ class InlineMarkdownParserTest {
     }
 
     @Test
-    fun `html tags are dropped and split the run around them`() {
-        // Two runs rather than one text run spanning the tag: a run's source range is what the
-        // highlighter colours, and a range that covered the tag would style it as part of the prose.
-        assertEquals(listOf("" to "a", "" to "b"), runs("a<br/>b"))
+    fun `html tags stay in the text rather than being dropped`() {
+        // The preview cannot render HTML, so it carries the tag through as text — which is what
+        // CommonMark's own output does with it. Dropping the tag silently hid part of the note.
+        assertEquals(listOf("" to "a<br/>b"), runs("a<br/>b"))
+    }
+
+    @Test
+    fun `an emphasis run that cannot open stays literal`() {
+        // CommonMark's flanking rules: a run followed by whitespace cannot open emphasis, so these
+        // are arithmetic and prose, not malformed emphasis.
+        assertEquals(listOf("" to "2 * 3 * 4 = 6"), runs("2 * 3 * 4 = 6"))
+        assertEquals(listOf("" to "a * b * c"), runs("a * b * c"))
+        assertEquals(listOf("" to "a * foo bar*"), runs("a * foo bar*"))
+        assertEquals(listOf("" to "*foo bar *"), runs("*foo bar *"))
+        assertEquals(listOf("" to "** 空格在外 **"), runs("** 空格在外 **"))
+    }
+
+    @Test
+    fun `an underscore inside a word never emphasises`() {
+        assertEquals(listOf("" to "foo_bar_baz"), runs("foo_bar_baz"))
+        assertEquals(listOf("" to "foo__bar__baz"), runs("foo__bar__baz"))
+        assertEquals(listOf("" to "x__y__z"), runs("x__y__z"))
+    }
+
+    @Test
+    fun `an underscore at a word boundary still emphasises`() {
+        // `__init__.py` is strong emphasis around `init` in CommonMark too: the run starts a word
+        // there, which is exactly the case the in-word restriction does not cover.
+        assertEquals(listOf("b" to "init", "" to ".py"), runs("__init__.py"))
+        assertEquals(listOf("i" to "foo_bar_baz"), runs("_foo_bar_baz_"))
+    }
+
+    @Test
+    fun `asterisks inside a word still emphasise`() {
+        assertEquals(listOf("" to "3", "i" to "4", "" to "5"), runs("3*4*5"))
+        assertEquals(listOf("" to "a ", "i" to "b", "" to " c"), runs("a *b* c"))
+    }
+
+    @Test
+    fun `entities are decoded`() {
+        assertEquals(listOf("" to "a & b"), runs("a &amp; b"))
+        assertEquals(listOf("" to "3 < 4 > 2"), runs("3 &lt; 4 &gt; 2"))
+        assertEquals(listOf("" to "© 2026"), runs("&copy; 2026"))
+        assertEquals(listOf("" to "A"), runs("&#65;"))
+        assertEquals(listOf("" to "A"), runs("&#x41;"))
+    }
+
+    @Test
+    fun `an unknown entity and a bare ampersand stay literal`() {
+        assertEquals(listOf("" to "&notanentity;"), runs("&notanentity;"))
+        assertEquals(listOf("" to "a & b"), runs("a & b"))
+    }
+
+    @Test
+    fun `an entity inside emphasis is decoded inside it`() {
+        assertEquals(listOf("b" to "a & b"), runs("**a &amp; b**"))
     }
 
     @Test

@@ -5,7 +5,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -52,6 +54,7 @@ import com.cycling.mynote.ui.theme.MyNoteTheme
 internal fun MarkdownHeading(
     block: MarkdownBlock.Heading,
     scale: MarkdownTypeScale,
+    bodyColor: Color,
     onLinkClick: ((String) -> Unit)?,
     loadImage: (suspend (String) -> Bitmap?)?,
 ) {
@@ -64,7 +67,7 @@ internal fun MarkdownHeading(
     MarkdownRichText(
         spans = block.spans,
         style = scale.applyTo(base),
-        color = MyNoteTheme.colors.textPrimary,
+        color = bodyColor,
         onLinkClick = onLinkClick,
         loadImage = loadImage,
         modifier = Modifier.padding(top = if (block.level <= 2) 8.dp else 4.dp),
@@ -75,13 +78,14 @@ internal fun MarkdownHeading(
 internal fun MarkdownParagraph(
     spans: List<InlineSpan>,
     scale: MarkdownTypeScale,
+    bodyColor: Color,
     onLinkClick: ((String) -> Unit)?,
     loadImage: (suspend (String) -> Bitmap?)?,
 ) {
     MarkdownRichText(
         spans = spans,
         style = scale.applyTo(MyNoteTheme.text.body),
-        color = MyNoteTheme.colors.textPrimary,
+        color = bodyColor,
         onLinkClick = onLinkClick,
         loadImage = loadImage,
     )
@@ -93,6 +97,7 @@ internal fun MarkdownListItem(
     depth: Int,
     scale: MarkdownTypeScale,
     marker: String?,
+    bodyColor: Color,
     onLinkClick: ((String) -> Unit)?,
     loadImage: (suspend (String) -> Bitmap?)?,
     checked: Boolean? = null,
@@ -124,7 +129,7 @@ internal fun MarkdownListItem(
         MarkdownRichText(
             spans = spans,
             style = bodyStyle,
-            color = if (isDone) colors.textTertiary else colors.textPrimary,
+            color = if (isDone) colors.textTertiary else bodyColor,
             onLinkClick = onLinkClick,
             loadImage = loadImage,
             modifier = Modifier.weight(1f),
@@ -175,10 +180,19 @@ private fun TaskCheckbox(checked: Boolean, onClick: (() -> Unit)?) {
     }
 }
 
+/**
+ * A blockquote: a rule down the left of whatever the quoted lines parsed to.
+ *
+ * Recursive, because `>` is a container — the quoted lines went back through the block parser with
+ * one level of marker removed, so a quote can hold a list, a heading, a code fence or another quote,
+ * and the nested one draws its own rule inside this one's.
+ */
 @Composable
 internal fun MarkdownQuote(
-    spans: List<InlineSpan>,
+    block: MarkdownBlock.Quote,
     scale: MarkdownTypeScale,
+    bodyColor: Color,
+    onToggleTask: ((line: Int) -> Unit)?,
     onLinkClick: ((String) -> Unit)?,
     loadImage: (suspend (String) -> Bitmap?)?,
 ) {
@@ -186,24 +200,33 @@ internal fun MarkdownQuote(
     val dimens = MyNoteTheme.dimens
 
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        // The rule takes the height of the quoted content rather than a fixed one, so a quote of ten
+        // lines is ruled for ten lines.
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min),
         horizontalArrangement = Arrangement.spacedBy(dimens.gapRegular),
     ) {
         Box(
             modifier = Modifier
                 .width(2.dp)
-                .height(20.dp)
+                .fillMaxHeight()
                 .clip(RoundedCornerShape(1.dp))
                 .background(colors.textPrimary),
         )
-        MarkdownRichText(
-            spans = spans,
-            style = scale.applyTo(MyNoteTheme.text.body),
-            color = colors.textSecondary,
-            onLinkClick = onLinkClick,
-            loadImage = loadImage,
+        Column(
             modifier = Modifier.weight(1f),
-        )
+            verticalArrangement = Arrangement.spacedBy(dimens.gapMedium),
+        ) {
+            MarkdownBlocks(
+                blocks = block.blocks,
+                scale = scale,
+                bodyColor = bodyColor,
+                onToggleTask = onToggleTask,
+                onLinkClick = onLinkClick,
+                loadImage = loadImage,
+            )
+        }
     }
 }
 
@@ -247,6 +270,7 @@ internal fun MarkdownThematicBreak() {
 internal fun MarkdownTable(
     block: MarkdownBlock.Table,
     scale: MarkdownTypeScale,
+    bodyColor: Color,
     onLinkClick: ((String) -> Unit)?,
 ) {
     val colors = MyNoteTheme.colors
@@ -259,7 +283,7 @@ internal fun MarkdownTable(
             alignments = block.alignments,
             style = bodyStyle,
             weight = FontWeight.SemiBold,
-            color = colors.textPrimary,
+            color = bodyColor,
             onLinkClick = onLinkClick,
         )
         MyNoteDivider()
@@ -269,7 +293,9 @@ internal fun MarkdownTable(
                 alignments = block.alignments,
                 style = bodyStyle,
                 weight = FontWeight.Normal,
-                color = colors.textSecondary,
+                // The body of a table is secondary to its header, unless the table sits in a quote
+                // that already dimmed everything, where a second dimming step would be unreadable.
+                color = if (bodyColor == colors.textPrimary) colors.textSecondary else bodyColor,
                 onLinkClick = onLinkClick,
             )
             if (index != block.rows.lastIndex) {

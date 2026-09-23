@@ -61,18 +61,11 @@ object InlineMarkdownParser {
 
                     char == '[' || text.startsWith("![", index) -> link(index)
 
-                    text.startsWith("***", index) || text.startsWith("___", index) ->
-                        emphasis(index, 3, bold = true, italic = true)
+                    char == '&' -> entity(index)
 
-                    text.startsWith("**", index) || text.startsWith("__", index) ->
-                        emphasis(index, 2, bold = true, italic = italic)
+                    char == '*' || char == '_' -> delimiterRun(index)
 
                     text.startsWith("~~", index) -> emphasis(index, 2, strike = true)
-
-                    (char == '*' || char == '_') && isEmphasisBoundary(index) ->
-                        emphasis(index, 1, italic = true)
-
-                    char == '<' -> htmlTag(index)
 
                     startsBareLink(index) -> bareLink(index)
 
@@ -84,6 +77,23 @@ object InlineMarkdownParser {
             }
             flush(text.length)
             return spans
+        }
+
+        /**
+         * A `&amp;`-style reference, decoded to the character it stands for.
+         *
+         * The decoded text goes into the surrounding run, the way an escaped character does: the run's
+         * source range still points at the reference in the note, so the highlighter colours what the
+         * author typed even though the preview shows one character.
+         */
+        private fun entity(start: Int): Int {
+            val entity = MarkdownSyntax.entityAt(text, start)
+            if (entity == null) {
+                append('&', start)
+                return start + 1
+            }
+            append(entity.text, start)
+            return entity.end
         }
 
         /** A backtick run, whose content is opaque to every other rule. */
@@ -150,8 +160,55 @@ object InlineMarkdownParser {
         }
 
         /**
-         * A delimiter run that opens emphasis, if a matching run closes it. When nothing closes it
-         * the markers are literal text, which is what keeps a half-typed `**` visible.
+         * A run of `*` or `_`, taken as emphasis when the delimiter rules allow it and left as
+         * literal text when they do not.
+         *
+         * CommonMark decides by flanking, not by counting: a run that is followed by whitespace can
+         * never open emphasis, and one preceded by whitespace can never close it, so `2 * 3 * 4` is
+         * arithmetic rather than a mangled italic. Underscores have the further restriction that they
+         * cannot open or close inside a word, which is what keeps `foo__bar__baz` and `snake_case`
+         * literal while `__init__` — at the start of a word — still emphasises. Reading a run as
+         * "there must be a partner somewhere" instead of asking those two questions is what turned
+         * ordinary prose into wrong italics.
+         *
+         * The widest reading of the run is tried first: `***x***` is bold *and* italic, `**x**` bold,
+         * `*x*` italic. A run with no valid partner stays literal, so half-typed text still shows the
+         * markers the author typed.
+         */
+        private fun delimiterRun(start: Int): Int {
+            val marker = text[start]
+            val length = runLength(start, marker)
+            if (!canOpen(start, length, marker)) {
+                appendRange(start, start + length)
+                return start + length
+            }
+
+            val widths = when {
+                length >= 3 -> intArrayOf(3, 2, 1)
+                length == 2 -> intArrayOf(2, 1)
+                else -> intArrayOf(1)
+            }
+            for (width in widths) {
+                val closing = findClosingRun(start + width, marker, width) ?: continue
+                return emphasise(
+                    start = start,
+                    width = width,
+                    closing = closing,
+                    // `***x***` is both, `**x**` is bold inside whatever was already open, and `*x*`
+                    // is italic — never losing the emphasis an enclosing construct already applied.
+                    bold = bold || width >= 2,
+                    italic = italic || width == 1 || width == 3,
+                    strike = strike,
+                )
+            }
+
+            appendRange(start, start + length)
+            return start + length
+        }
+
+        /**
+         * A `~~strike~~`, kept on its own because strikethrough has no flanking restriction: it is a
+         * GFM extension that pairs whenever two runs can find each other.
          */
         private fun emphasis(
             start: Int,
@@ -166,30 +223,68 @@ object InlineMarkdownParser {
                 appendRange(start, start + markerLength)
                 return start + markerLength
             }
+            return emphasise(
+                start = start,
+                width = markerLength,
+                closing = closing,
+                bold = bold,
+                italic = italic,
+                strike = true,
+            )
+        }
+
+        /** Emits the emphasised span for a delimiter pair the caller has already matched. */
+        private fun emphasise(
+            start: Int,
+            width: Int,
+            closing: ClosingRun,
+            bold: Boolean,
+            italic: Boolean,
+            strike: Boolean,
+        ): Int {
             flush(start)
             val inner = parse(
-                text = text.substring(start + markerLength, closing.innerEnd),
+                text = text.substring(start + width, closing.innerEnd),
                 bold = bold,
                 italic = italic,
                 strike = strike,
                 linkUrl = linkUrl,
-                baseOffset = baseOffset + start + markerLength,
+                baseOffset = baseOffset + start + width,
             )
             spans += inner.stretch(baseOffset + start, baseOffset + closing.afterRun)
             return closing.afterRun
         }
 
-        /** A raw HTML tag, dropped from the rendered text and from the styled ranges. */
-        private fun htmlTag(start: Int): Int {
-            val close = text.indexOf('>', start)
-            val candidate = if (close > start) text.substring(start, close + 1) else null
-            if (candidate == null || !TAG_NAME.matches(candidate)) {
-                append(text[start], start)
-                return start + 1
+        /** True when the run at [start] may open emphasis, by CommonMark's flanking rules. */
+        private fun canOpen(start: Int, length: Int, marker: Char): Boolean {
+            val before = text.getOrNull(start - 1)
+            val after = text.getOrNull(start + length)
+            val leftFlanking = !isWhitespace(after) &&
+                (!MarkdownSyntax.isPunctuation(after) || isWhitespace(before) || MarkdownSyntax.isPunctuation(before))
+            if (leftFlanking && marker == '_') {
+                val rightFlanking = !isWhitespace(before) &&
+                    (!MarkdownSyntax.isPunctuation(before) || isWhitespace(after) || MarkdownSyntax.isPunctuation(after))
+                return !rightFlanking || MarkdownSyntax.isPunctuation(before)
             }
-            flush(start)
-            return close + 1
+            return leftFlanking
         }
+
+        /** True when the run at [start] may close emphasis, by CommonMark's flanking rules. */
+        private fun canClose(start: Int, length: Int, marker: Char): Boolean {
+            val before = text.getOrNull(start - 1)
+            val after = text.getOrNull(start + length)
+            val rightFlanking = !isWhitespace(before) &&
+                (!MarkdownSyntax.isPunctuation(before) || isWhitespace(after) || MarkdownSyntax.isPunctuation(after))
+            if (rightFlanking && marker == '_') {
+                val leftFlanking = !isWhitespace(after) &&
+                    (!MarkdownSyntax.isPunctuation(after) || isWhitespace(before) || MarkdownSyntax.isPunctuation(before))
+                return !leftFlanking || MarkdownSyntax.isPunctuation(after)
+            }
+            return rightFlanking
+        }
+
+        /** The start and end of the line count as whitespace, which is what the flanking rules mean. */
+        private fun isWhitespace(char: Char?): Boolean = char == null || char.isWhitespace()
 
         private fun startsBareLink(index: Int): Boolean =
             BARE_LINK.containsMatchIn(text.substring(index, minOf(index + 12, text.length)))
@@ -240,6 +335,12 @@ object InlineMarkdownParser {
             buffer.append(char)
         }
 
+        /** Appends text that stands for less source than it occupies, as an entity does. */
+        private fun append(decoded: String, at: Int) {
+            if (buffer.isEmpty()) runStart = at
+            buffer.append(decoded)
+        }
+
         private fun appendRange(from: Int, to: Int) {
             if (buffer.isEmpty()) runStart = from
             buffer.append(text, from, to)
@@ -263,16 +364,18 @@ object InlineMarkdownParser {
         /**
          * Finds the delimiter run that closes an emphasis span.
          *
-         * A longer run than the opener belongs partly to the inner text: in `**bold *italic***` the
-         * closing run is three asterisks, of which the first closes the italic and the last two close
-         * the bold. Taking the whole run would swallow the inner delimiter and leave an unmatched one.
+         * A run only counts if the flanking rules let it close — a run preceded by a space cannot, so
+         * `*foo bar *` has no closer and stays literal. A longer run than the opener belongs partly to
+         * the inner text: in `**bold *italic***` the closing run is three asterisks, of which the
+         * first closes the italic and the last two close the bold. Taking the whole run would swallow
+         * the inner delimiter and leave an unmatched one.
          */
         private fun findClosingRun(from: Int, char: Char, minLength: Int): ClosingRun? {
             var index = from
             while (index < text.length) {
                 if (text[index] == char) {
                     val length = runLength(index, char)
-                    if (length >= minLength) {
+                    if (length >= minLength && canClose(index, length, char)) {
                         return ClosingRun(
                             innerEnd = index + length - minLength,
                             afterRun = index + length,
@@ -284,16 +387,6 @@ object InlineMarkdownParser {
                 }
             }
             return null
-        }
-
-        /**
-         * `_` inside a word is a literal underscore (`snake_case`), not emphasis; `*` is always a
-         * delimiter because it has no other meaning in Markdown.
-         */
-        private fun isEmphasisBoundary(index: Int): Boolean {
-            if (text[index] == '*') return true
-            val previous = text.getOrNull(index - 1)
-            return previous == null || !previous.isLetterOrDigit()
         }
 
         private fun runLength(start: Int, char: Char): Int {
@@ -313,8 +406,6 @@ object InlineMarkdownParser {
     }
 
     private data class ClosingRun(val innerEnd: Int, val afterRun: Int)
-
-    private val TAG_NAME = Regex("""^</?[A-Za-z][^>]*>$""")
 
     private val BARE_LINK = Regex("""^(https?://|www\.)\S""")
 

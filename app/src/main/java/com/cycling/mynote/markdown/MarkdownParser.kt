@@ -21,15 +21,17 @@ object MarkdownParser {
         // Blocks are numbered from the top of the body, but a task's line has to address the note's
         // raw Markdown, which is what the editor rewrites.
         val lineOffset = markdown.take(bodyStart).count { it == '\n' }
-        return MarkdownDocument(parseBlocks(body, bodyStart, lineOffset))
+        return MarkdownDocument(parseBlockLines(splitWithOffsets(body, bodyStart, lineOffset)))
     }
 
     /**
-     * @param bodyStart the offset of [body] in the whole note, so a span's source offsets address the
-     *   note rather than the body.
+     * Parses a run of lines into blocks.
+     *
+     * Takes lines rather than text because a blockquote hands its content back through this same
+     * function with one level of `>` stripped off: the line's own start offset and line number travel
+     * with it, so a task inside a quote still knows which line of the note it came from.
      */
-    private fun parseBlocks(body: String, bodyStart: Int, lineOffset: Int): List<MarkdownBlock> {
-        val lines = splitWithOffsets(body, bodyStart)
+    private fun parseBlockLines(lines: List<Line>): List<MarkdownBlock> {
         val blocks = mutableListOf<MarkdownBlock>()
         val paragraph = mutableListOf<Line>()
         var index = 0
@@ -137,14 +139,23 @@ object MarkdownParser {
             val quote = MarkdownSyntax.QUOTE.matchEntire(line)
             if (quote != null) {
                 flushParagraph()
-                blocks += MarkdownBlock.Quote(
-                    depth = MarkdownSyntax.indentDepth(line),
-                    spans = InlineMarkdownParser.parse(
-                        text = quote.groupValues[2],
-                        baseOffset = lines[index].start + quote.groups[2]!!.range.first,
-                    ),
-                )
-                index++
+                val quoted = mutableListOf<Line>()
+                while (index < lines.size && MarkdownSyntax.QUOTE.containsMatchIn(lines[index].text)) {
+                    val current = lines[index]
+                    val marker = MarkdownSyntax.QUOTE.find(current.text)!!
+                    // One level of `>` comes off and the rest is parsed by this same function, so a
+                    // quote nests to any depth and may hold anything a note may hold. The offsets
+                    // survive the stripping, which is what keeps the highlighter and a toggled task
+                    // pointing at the right place in the note.
+                    val content = marker.groupValues[2]
+                    quoted += Line(
+                        text = content,
+                        start = current.start + marker.groups[2]!!.range.first,
+                        number = current.number,
+                    )
+                    index++
+                }
+                blocks += MarkdownBlock.Quote(parseBlockLines(quoted))
                 continue
             }
 
@@ -162,7 +173,7 @@ object MarkdownParser {
                             text = task.groupValues[2],
                             baseOffset = contentOffset + task.groups[2]!!.range.first,
                         ),
-                        line = lineOffset + index,
+                        line = lines[index].number,
                     )
                 } else {
                     MarkdownBlock.Bullet(
@@ -237,14 +248,19 @@ object MarkdownParser {
         }
     }
 
-    /** The body's lines with the offset each one starts at, which the inline spans are relative to. */
-    private fun splitWithOffsets(body: String, bodyStart: Int): List<Line> {
+    /**
+     * The body's lines with what each one needs to be found again: where it starts in the note, and
+     * which line of it it is.
+     */
+    private fun splitWithOffsets(body: String, bodyStart: Int, firstLineNumber: Int): List<Line> {
         val lines = mutableListOf<Line>()
         var start = 0
         var index = 0
+        var number = firstLineNumber
         while (index <= body.length) {
             if (index == body.length || body[index] == '\n') {
-                lines += Line(body.substring(start, index), bodyStart + start)
+                lines += Line(body.substring(start, index), bodyStart + start, number)
+                number++
                 start = index + 1
             }
             index++
@@ -252,5 +268,5 @@ object MarkdownParser {
         return lines
     }
 
-    private data class Line(val text: String, val start: Int)
+    private data class Line(val text: String, val start: Int, val number: Int)
 }

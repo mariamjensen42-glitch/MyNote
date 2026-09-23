@@ -60,8 +60,17 @@ sealed interface MarkdownBlock {
         val line: Int,
     ) : MarkdownBlock
 
+    /**
+     * A blockquote, holding whatever the quoted lines parse to.
+     *
+     * Blocks rather than a run of text, because `>` is a container: a quote can hold a list, a
+     * heading, a fenced code block or another quote, and reading the marker off the line and keeping
+     * the rest as text is what made `> > 嵌套` come out as `> 嵌套`, and `> - [ ] x` as a literal
+     * task marker. The quoted lines are stripped of one level of `>` and parsed by the same parser,
+     * which is also what makes any depth of nesting work.
+     */
     @Immutable
-    data class Quote(val depth: Int, val spans: List<InlineSpan>) : MarkdownBlock
+    data class Quote(val blocks: List<MarkdownBlock>) : MarkdownBlock
 
     @Immutable
     data class Code(val language: String?, val lines: List<String>) : MarkdownBlock

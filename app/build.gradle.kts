@@ -27,7 +27,7 @@ val keystoreProperties = Properties().apply {
 val hasReleaseKeystore = keystorePropertiesFile.isFile
 
 /** Kept in one place: the manifest, the APK's file name and the settings screen all read it. */
-val appVersionName = "0.0.3"
+val appVersionName = "0.0.4"
 
 android {
     namespace = "com.cycling.mynote"
@@ -41,7 +41,7 @@ android {
         applicationId = "com.cycling.mynote"
         minSdk = 31
         targetSdk = 36
-        versionCode = 3
+        versionCode = 4
         versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
