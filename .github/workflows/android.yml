@@ -21,6 +21,17 @@ jobs:
     name: Build and test
     runs-on: ubuntu-latest
 
+    # Write access is for one thing only: attaching the APK this job built to the GitHub release.
+    permissions:
+      contents: write
+
+    env:
+      # Secrets cannot be read in a step's `if:`, so their presence is turned into a plain variable
+      # the steps branch on. A fork or a pull request from one has no secrets at all, and the
+      # release variant is then built unsigned exactly as before — it is still a full R8 run and
+      # still fails on a bad keep rule.
+      HAS_KEYSTORE: ${{ secrets.KEYSTORE_BASE64 != '' }}
+
     steps:
       - name: Check out
         uses: actions/checkout@v7
@@ -36,17 +47,32 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
+      # The signing key lives in repository secrets, never in the repository: a private key in git
+      # history cannot be un-published. It is decoded to the runner's temporary directory and
+      # described by the same `keystore.properties` the local build reads, so signing happens through
+      # one code path whether the build runs here or on a workstation.
+      - name: Provide the release signing key
+        if: env.HAS_KEYSTORE == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+            "$RUNNER_TEMP/release.jks" "$KEYSTORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" \
+            > keystore.properties
+
       - name: Run unit tests
         run: ./gradlew :app:testDebugUnitTest --stacktrace
 
       - name: Assemble debug APK
         run: ./gradlew :app:assembleDebug --stacktrace
 
-      # Builds the release variant too, so the R8 configuration and keep rules are exercised on
-      # every push. It comes out unsigned here because the signing keystore is deliberately not in
-      # the repository — an unsigned release build is still a full R8 run and will fail on a bad
-      # keep rule exactly as a signed one would.
-      - name: Assemble release APK (unsigned)
+      # Signed when the key is available, unsigned otherwise — either way this exercises the R8
+      # configuration and keep rules on every push.
+      - name: Assemble release APK
         run: ./gradlew :app:assembleRelease --stacktrace
 
       - name: Upload test report
@@ -64,3 +90,24 @@ jobs:
           name: app-debug
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+
+      # The build people install comes from here rather than from someone's laptop: the artifact and
+      # the commit it was built from are the same record.
+      - name: Upload signed release APK
+        if: env.HAS_KEYSTORE == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: mynote-release-signed
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      - name: Attach the signed APK to the release
+        if: startsWith(github.ref, 'refs/tags/v') && env.HAS_KEYSTORE == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          gh release view "$tag" >/dev/null 2>&1 \
+            || gh release create "$tag" --title "$tag" --generate-notes
+          # --clobber so a re-run replaces the asset instead of failing on the name it already has.
+          gh release upload "$tag" app/build/outputs/apk/release/*.apk --clobber

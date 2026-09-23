@@ -26,6 +26,9 @@ val keystoreProperties = Properties().apply {
 }
 val hasReleaseKeystore = keystorePropertiesFile.isFile
 
+/** Kept in one place: the manifest, the APK's file name and the settings screen all read it. */
+val appVersionName = "0.0.3"
+
 android {
     namespace = "com.cycling.mynote"
     compileSdk {
@@ -39,7 +42,7 @@ android {
         minSdk = 31
         targetSdk = 36
         versionCode = 3
-        versionName = "0.0.3"
+        versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -119,4 +122,21 @@ dependencies {
 
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
+}
+
+/**
+ * Names the APK after the version: `mynote-0.0.3.apk` rather than `app-release.apk`.
+ *
+ * Two releases shipped under the same file name, and a browser — or a phone's download manager —
+ * happily hands back the file it already has under that name. What arrives is then the previous
+ * version, and it looks for all the world like the new one failed to build. The version in the name
+ * makes that impossible, and makes a downloaded file self-describing.
+ */
+androidComponents {
+    onVariants { variant ->
+        val suffix = if (variant.name == "release") "" else "-${variant.name}"
+        variant.outputs.forEach { output ->
+            output.outputFileName.set("mynote-$appVersionName$suffix.apk")
+        }
+    }
 }
