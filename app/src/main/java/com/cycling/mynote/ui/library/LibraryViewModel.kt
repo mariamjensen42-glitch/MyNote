@@ -22,6 +22,8 @@ import com.cycling.mynote.ui.mvi.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import androidx.lifecycle.viewModelScope
 import javax.inject.Inject
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
@@ -131,7 +133,10 @@ sealed interface LibraryEvent : UiEvent {
 
     data object CreateSampleNoteClicked : LibraryEvent
 
-    data object MessageShown : LibraryEvent
+    /** A message the screen is showing; the screen dismisses it when its time is up. */
+    data class MessageShown(val message: String) : LibraryEvent
+
+    data object MessageDismissed : LibraryEvent
 
     data class TabSelected(val tab: Int) : LibraryEvent
 }
@@ -184,6 +189,9 @@ class LibraryViewModel @Inject constructor(
      * rows that are built from it, so the tree could not be collapsed at all.
      */
     private val expandedFolders = MutableStateFlow<Set<String>>(emptySet())
+
+    /** The message currently on screen, so a second one replaces the first instead of racing it. */
+    private var messageJob: Job? = null
 
     init {
         combine(
@@ -377,7 +385,16 @@ class LibraryViewModel @Inject constructor(
                 refresh(force = false)
             }
 
-            LibraryEvent.MessageShown -> setState { copy(message = null) }
+            is LibraryEvent.MessageShown -> {
+                setState { copy(message = event.message) }
+                messageJob?.cancel()
+                messageJob = viewModelScope.launch {
+                    delay(MESSAGE_DURATION_MS)
+                    setState { copy(message = null) }
+                }
+            }
+
+            LibraryEvent.MessageDismissed -> setState { copy(message = null) }
 
             is LibraryEvent.TabSelected -> Unit // handled by the navigation host
         }
@@ -434,6 +451,9 @@ class LibraryViewModel @Inject constructor(
 
     /** One frame's worth of everything the library renders. */
     private companion object {
+
+        /** Long enough to read a short failure, short enough not to sit over the list. */
+        const val MESSAGE_DURATION_MS = 4_000L
 
         fun NoteSort.next(): NoteSort = NoteSort.entries[(ordinal + 1) % NoteSort.entries.size]
 

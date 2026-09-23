@@ -128,4 +128,89 @@ class MarkdownSourceEditorTest {
 
         assertEquals(source, MarkdownSourceEditor.indent(source, 0, source.length, outdent = true).text)
     }
+
+    @Test
+    fun `a picture attached at the end of a heading becomes its own block`() {
+        val source = "# 我的标题"
+        val edit = MarkdownSourceEditor.attachImage(source, source.length, source.length, "attachments/1.jpg")
+
+        assertEquals("# 我的标题\n\n![](attachments/1.jpg)", edit.text)
+    }
+
+    @Test
+    fun `a picture attached over a selection uses it as the alt text`() {
+        val source = "一只猫"
+
+        val edit = MarkdownSourceEditor.attachImage(source, 0, source.length, "attachments/1.jpg")
+
+        assertEquals("![一只猫](attachments/1.jpg)", edit.text)
+    }
+
+    @Test
+    fun `a picture attached at the start of a line leaves the line's text as its own block`() {
+        val source = "上文\n\n下文"
+        val caret = source.indexOf("下文")
+
+        val edit = MarkdownSourceEditor.attachImage(source, caret, caret, "pic.png")
+
+        assertEquals("上文\n\n![](pic.png)\n\n下文", edit.text)
+        // The caret ends up after the picture, not back inside the text it was pushed off the line.
+        assertEquals("上文\n\n![](pic.png)".length, edit.selectionStart)
+    }
+
+    @Test
+    fun `a picture attached inside blank space does not add blank lines`() {
+        val source = "上文\n  \n下文"
+        val caret = source.indexOf("  ") + 1
+
+        val edit = MarkdownSourceEditor.attachImage(source, caret, caret, "pic.png")
+
+        assertEquals("上文\n ![](pic.png) \n下文", edit.text)
+    }
+
+    @Test
+    fun `a picture attached mid-line splits the paragraph instead of joining it`() {
+        val source = "前半后半"
+
+        val edit = MarkdownSourceEditor.attachImage(source, 2, 2, "pic.png")
+
+        assertEquals("前半\n\n![](pic.png)\n\n后半", edit.text)
+    }
+
+    @Test
+    fun `the caret lands after the picture just written`() {
+        val edit = MarkdownSourceEditor.attachImage("", 0, 0, "pic.png")
+
+        assertEquals("![](pic.png)", edit.text)
+        assertEquals(edit.text.length, edit.selectionStart)
+    }
+
+    @Test
+    fun `the parser reads back what attachImage wrote as a picture block`() {
+        val source = "# 标题"
+        val edit = MarkdownSourceEditor.attachImage(source, source.length, source.length, "attachments/1.jpg")
+
+        val images = MarkdownParser.parse(edit.text).blocks
+            .filterIsInstance<MarkdownBlock.Paragraph>()
+            .flatMap { it.spans.images() }
+
+        assertEquals(listOf("attachments/1.jpg" to ""), images)
+    }
+
+    @Test
+    fun `a picture attached at the very top of a note goes below the front matter`() {
+        val source = "---\ncreated: \"2026-09-23\"\n---\n\n# 标题\n"
+
+        val edit = MarkdownSourceEditor.attachImage(source, 0, 0, "attachments/1.jpg")
+
+        assertEquals("---\ncreated: \"2026-09-23\"\n---\n\n![](attachments/1.jpg)\n\n# 标题\n", edit.text)
+        assertEquals("2026-09-23", FrontMatterParser.parse(edit.text).frontMatter.created)
+    }
+
+    @Test
+    fun `a note with no front matter is unaffected`() {
+        val edit = MarkdownSourceEditor.attachImage("正文", 0, 0, "pic.png")
+
+        assertEquals("![](pic.png)\n\n正文", edit.text)
+    }
 }

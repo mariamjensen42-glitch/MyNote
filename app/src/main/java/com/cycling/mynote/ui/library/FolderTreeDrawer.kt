@@ -10,6 +10,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -453,6 +454,7 @@ fun LibraryWithDrawer(
     state: LibraryState,
     timeFormatter: RelativeTimeFormatter,
     onEvent: (LibraryEvent) -> Unit,
+    overlay: @Composable BoxScope.() -> Unit = {},
     content: @Composable () -> Unit,
 ) {
     val colors = MyNoteTheme.colors
@@ -508,5 +510,10 @@ fun LibraryWithDrawer(
                 )
             }
         }
+
+        // Above the drawer as well as above the list: the failures this reports usually come *from*
+        // the drawer (a folder name that is taken), and a message the panel covers is no better than
+        // the silence it replaces.
+        overlay()
     }
 }

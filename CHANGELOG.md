@@ -7,6 +7,32 @@
 
 ## [Unreleased]
 
+## [0.0.3] - 2026-09-23
+
+### 修复
+
+- **新建笔记在多数仓库里必然失败**。0.0.2 收敛重名逻辑时把「这个名字可以用」也当成了冲突：只是仓库里没有叫
+  `未命名笔记.md` 的文件，就会直接抛「已存在同名项目」。于是从零建一个仓库、或者自己的笔记都不叫这个名字的人，
+  点「新建」什么也不会发生；「重命名」改成任何没用过的名字同样失败。现在只在真的重名时才会往后加序号
+  （`NoteNamingTest` 覆盖了这个契约，它此前没有测试）
+
+- **附件目录不出现在文件夹树里**。目录树只能来自文件系统扫描，而「图片」按钮把图片放进 `attachments/` 时
+  没有任何人去重新扫描，于是抽屉里没有这个目录的行，笔记里却已经存着一张放在那里的图。现在写入附件后会重新
+  走一遍目录并发布，抽屉随即能看到它（无需手动刷新）
+
+- **工具栏插入的图片不显示**。图片引用是写在光标处的，而光标通常在某一行的文字中间或末尾：`# 我的标题` 后面
+  插入会得到 `# 我的标题![](attachments/1.jpg)`——图片落进了标题内部，而预览只把「独占一段」的图片画成图，
+  行内图片一律显示成 `[alt]` 占位文字。两处都改了：引用总是独立成段（在文字中间插入会把段落拆开），行内图片
+  也渲染成真正的图片（放不下就换行）。表格单元格里的图片保持占位文字，见「已知限制」
+
+- **在笔记开头插入图片会把 front matter 顶下去**。打开笔记时光标就在正文最前面，此时按「图片」会把引用插在
+  `---` 之前，`created` / `tags` / `favorite` 随即变成普通正文，笔记的元数据静默失效。插入时现在会跳过
+  front matter，放在它下面
+
+- **操作失败没有任何提示**。笔记库把「显示消息」这类效果直接丢掉了（`ShowMessage -> Unit`），所以新建、重命名、
+  移动、刷新失败时界面毫无反应——「新建笔记」看起来就像个坏掉的按钮。现在失败会显示一条可点掉的消息（几秒后自动消失），
+  且画在文件夹抽屉之上：最常失败的恰恰是抽屉里的操作（目录重名），放在抽屉下面等于没有
+
 ## [0.0.2] - 2026-09-23
 
 ### 新增
@@ -170,6 +196,7 @@
 - 清理 6 个未被引用的组件（`MyNoteLabeledDivider`、`NoteMetaRow`、`MyNoteCaret`、
   `MyNoteHairline`、`PreviewCheckbox` 等）与 7 个未使用的尺寸 token
 
-[Unreleased]: https://github.com/mariamjensen42-glitch/MyNote/compare/v0.0.2...HEAD
+[Unreleased]: https://github.com/mariamjensen42-glitch/MyNote/compare/v0.0.3...HEAD
+[0.0.3]: https://github.com/mariamjensen42-glitch/MyNote/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/mariamjensen42-glitch/MyNote/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/mariamjensen42-glitch/MyNote/releases/tag/v0.0.1

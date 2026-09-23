@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,6 +35,9 @@ import com.cycling.mynote.ui.theme.MyNoteTheme
  *
  * [loadImage] is handed in by the screen, which is what knows the note's folder and how to reach the
  * repository; when it is absent (a read-only preview somewhere else) this stays a placeholder.
+ *
+ * Sizing is the caller's: a picture alone in its block fills the width, one sitting inside a line of
+ * prose is capped by [InlineImageSize] and wraps like a very large word.
  */
 @Composable
 internal fun MarkdownImage(
@@ -48,7 +52,7 @@ internal fun MarkdownImage(
     var bitmap by remember(reference) { mutableStateOf<Bitmap?>(null) }
     var failed by remember(reference) { mutableStateOf(false) }
 
-    LaunchedEffect(reference, loadImage) {
+    LaunchedEffect(reference) {
         failed = false
         bitmap = if (loadImage == null) {
             failed = true
@@ -68,7 +72,6 @@ internal fun MarkdownImage(
             color = if (failed) colors.textTertiary else colors.textSecondary,
             textAlign = TextAlign.Start,
             modifier = modifier
-                .fillMaxWidth()
                 .clip(RoundedCornerShape(dimens.radiusMedium))
                 .background(colors.surfaceSunken)
                 .padding(dimens.gapCompact),
@@ -80,10 +83,7 @@ internal fun MarkdownImage(
         bitmap = image.asImageBitmap(),
         contentDescription = alt.ifBlank { null },
         contentScale = ContentScale.Fit,
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(max = 360.dp)
-            .clip(RoundedCornerShape(dimens.radiusMedium)),
+        modifier = modifier.clip(RoundedCornerShape(dimens.radiusMedium)),
     )
 }
 
@@ -99,7 +99,21 @@ internal fun MarkdownImageBlock(
         horizontalAlignment = Alignment.Start,
     ) {
         images.forEach { (reference, alt) ->
-            MarkdownImage(reference = reference, alt = alt, loadImage = loadImage)
+            MarkdownImage(
+                reference = reference,
+                alt = alt,
+                loadImage = loadImage,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = BLOCK_MAX_HEIGHT),
+            )
         }
     }
 }
+
+/** A picture with nothing but prose around it: capped so it wraps instead of stretching the line. */
+internal val InlineImageSize = Modifier
+    .widthIn(max = 240.dp)
+    .heightIn(max = 240.dp)
+
+private val BLOCK_MAX_HEIGHT = 360.dp

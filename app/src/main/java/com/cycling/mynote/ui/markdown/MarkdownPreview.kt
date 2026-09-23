@@ -49,14 +49,15 @@ fun MarkdownPreview(
     ) {
         document.blocks.forEach { block ->
             when (block) {
-                is MarkdownBlock.Heading -> MarkdownHeading(block, scale, onLinkClick)
+                is MarkdownBlock.Heading -> MarkdownHeading(block, scale, onLinkClick, loadImage)
 
                 // A paragraph that is nothing but pictures is a picture block, which is how a note
-                // shows an image on its own line. Pictures mixed into prose stay inline tokens.
+                // shows an image on its own line. A picture mixed into prose is drawn among the words
+                // it was written between.
                 is MarkdownBlock.Paragraph -> if (block.spans.isImageOnly()) {
                     MarkdownImageBlock(block.spans.images(), loadImage)
                 } else {
-                    MarkdownParagraph(block.spans, scale, onLinkClick)
+                    MarkdownParagraph(block.spans, scale, onLinkClick, loadImage)
                 }
 
                 is MarkdownBlock.Bullet -> MarkdownListItem(
@@ -65,6 +66,7 @@ fun MarkdownPreview(
                     scale = scale,
                     marker = "•",
                     onLinkClick = onLinkClick,
+                    loadImage = loadImage,
                 )
 
                 is MarkdownBlock.Ordered -> MarkdownListItem(
@@ -73,6 +75,7 @@ fun MarkdownPreview(
                     scale = scale,
                     marker = "${block.number}.",
                     onLinkClick = onLinkClick,
+                    loadImage = loadImage,
                 )
 
                 is MarkdownBlock.Task -> MarkdownListItem(
@@ -82,10 +85,11 @@ fun MarkdownPreview(
                     marker = null,
                     checked = block.checked,
                     onLinkClick = onLinkClick,
+                    loadImage = loadImage,
                     onToggle = onToggleTask?.let { toggle -> { toggle(block.line) } },
                 )
 
-                is MarkdownBlock.Quote -> MarkdownQuote(block.spans, scale, onLinkClick)
+                is MarkdownBlock.Quote -> MarkdownQuote(block.spans, scale, onLinkClick, loadImage)
 
                 is MarkdownBlock.Code -> MarkdownCodeBlock(block)
 

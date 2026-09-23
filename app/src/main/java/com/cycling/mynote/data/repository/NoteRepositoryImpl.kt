@@ -303,12 +303,18 @@ class NoteRepositoryImpl @Inject constructor(
         return entity.toNote()
     }
 
-    /** Finds a file name that does not collide inside [parentId], appending ` 2`, ` 3`, … */
+    /**
+     * A file name that does not collide inside [parentId], appending ` 2`, ` 3`, … when it does.
+     *
+     * [NoteNaming.uniqueName] answers with `desired` itself when nothing already holds that name, so
+     * getting `desired` back is success, not failure — it is the case of a repository that has no
+     * file by that name yet, which is every repository's first note. Treating it as a conflict made
+     * 新建笔记 fail on any repository that had no note called `未命名笔记`, and 重命名 fail for every
+     * title not already in use.
+     */
     private suspend fun uniqueFileName(uri: Uri, parentId: String, desired: String): String {
         val taken = store.listChildren(uri, parentId).mapTo(mutableSetOf()) { it.displayName }
-        val name = NoteNaming.uniqueName(taken, desired)
-        if (name == desired || name in taken) throw DataError.NameConflict(desired)
-        return name
+        return NoteNaming.uniqueName(taken, desired)
     }
 
     private fun matchesFilter(note: Note, query: NoteQuery): Boolean {

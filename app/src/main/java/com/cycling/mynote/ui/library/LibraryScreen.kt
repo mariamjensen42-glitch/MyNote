@@ -1,17 +1,21 @@
 package com.cycling.mynote.ui.library
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -75,7 +79,9 @@ fun LibraryScreen(
             LibraryEffect.OpenDiary -> onOpenDiary()
             LibraryEffect.OpenSettings -> onOpenSettings()
             is LibraryEffect.OpenQuickCapture -> onOpenCapture(effect.noteId)
-            is LibraryEffect.ShowMessage -> Unit
+            // A failed create, rename or refresh used to be dropped on the floor here, which made a
+            // failing 新建笔记 indistinguishable from a button that does nothing.
+            is LibraryEffect.ShowMessage -> viewModel.onEvent(LibraryEvent.MessageShown(effect.message))
         }
     }
 
@@ -83,6 +89,15 @@ fun LibraryScreen(
         state = state,
         timeFormatter = viewModel.relativeTime,
         onEvent = viewModel::onEvent,
+        overlay = {
+            state.message?.let { message ->
+                LibraryMessage(
+                    message = message,
+                    onDismiss = { viewModel.onEvent(LibraryEvent.MessageDismissed) },
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                )
+            }
+        },
     ) {
         MyNoteScreen(
             bottomBar = {
@@ -235,15 +250,6 @@ fun LibraryScreen(
             }
         }
 
-        if (state.message != null) {
-            state.message?.let { message ->
-                Text(
-                    text = message,
-                    style = MyNoteTheme.text.caption,
-                    color = colors.danger,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = dimens.gapCompact),
-                )
-            }
         }
     }
 
@@ -251,7 +257,36 @@ fun LibraryScreen(
         state = state,
         onEvent = viewModel::onEvent,
     )
-    }
+}
+
+/**
+ * A failure the library has to say out loud and then drop.
+ *
+ * Drawn over everything, because the operations that fail most often are the drawer's own (a folder
+ * name that is taken), and a message under the panel is a message nobody reads.
+ */
+@Composable
+private fun LibraryMessage(
+    message: String,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MyNoteTheme.colors
+    val dimens = MyNoteTheme.dimens
+
+    Text(
+        text = message,
+        style = MyNoteTheme.text.caption,
+        color = colors.danger,
+        modifier = modifier
+            .windowInsetsPadding(WindowInsets.systemBars)
+            .padding(horizontal = dimens.gapLarge, vertical = dimens.gapMedium)
+            .clip(RoundedCornerShape(dimens.radiusMedium))
+            .background(colors.surface)
+            .border(1.dp, colors.border, RoundedCornerShape(dimens.radiusMedium))
+            .clickable(onClick = onDismiss)
+            .padding(horizontal = dimens.gapMedium, vertical = dimens.gapCompact),
+    )
 }
 
 /** The title row, kept separate so the sticky header reads as one unit. */

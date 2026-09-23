@@ -1,5 +1,6 @@
 package com.cycling.mynote.ui.markdown
 
+import android.graphics.Bitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -48,16 +49,24 @@ import com.cycling.mynote.ui.theme.MyNoteTheme
  * would break word wrapping across an emphasis boundary.
  */
 @Composable
-internal fun MarkdownHeading(block: MarkdownBlock.Heading, scale: MarkdownTypeScale, onLinkClick: ((String) -> Unit)?) {
+internal fun MarkdownHeading(
+    block: MarkdownBlock.Heading,
+    scale: MarkdownTypeScale,
+    onLinkClick: ((String) -> Unit)?,
+    loadImage: (suspend (String) -> Bitmap?)?,
+) {
     val base = when (block.level) {
         1 -> MyNoteTheme.text.screenTitle
         2 -> MyNoteTheme.text.sheetTitle
         3 -> MyNoteTheme.text.noteTitleLarge
         else -> MyNoteTheme.text.noteTitle
     }
-    Text(
-        text = block.spans.toAnnotated(MyNoteTheme.colors.textPrimary, strike = false, onLinkClick),
+    MarkdownRichText(
+        spans = block.spans,
         style = scale.applyTo(base),
+        color = MyNoteTheme.colors.textPrimary,
+        onLinkClick = onLinkClick,
+        loadImage = loadImage,
         modifier = Modifier.padding(top = if (block.level <= 2) 8.dp else 4.dp),
     )
 }
@@ -67,10 +76,14 @@ internal fun MarkdownParagraph(
     spans: List<InlineSpan>,
     scale: MarkdownTypeScale,
     onLinkClick: ((String) -> Unit)?,
+    loadImage: (suspend (String) -> Bitmap?)?,
 ) {
-    Text(
-        text = spans.toAnnotated(MyNoteTheme.colors.textPrimary, strike = false, onLinkClick),
+    MarkdownRichText(
+        spans = spans,
         style = scale.applyTo(MyNoteTheme.text.body),
+        color = MyNoteTheme.colors.textPrimary,
+        onLinkClick = onLinkClick,
+        loadImage = loadImage,
     )
 }
 
@@ -81,6 +94,7 @@ internal fun MarkdownListItem(
     scale: MarkdownTypeScale,
     marker: String?,
     onLinkClick: ((String) -> Unit)?,
+    loadImage: (suspend (String) -> Bitmap?)?,
     checked: Boolean? = null,
     onToggle: (() -> Unit)? = null,
 ) {
@@ -107,14 +121,14 @@ internal fun MarkdownListItem(
             )
         }
 
-        Text(
-            text = spans.toAnnotated(
-                baseColor = if (isDone) colors.textTertiary else colors.textPrimary,
-                strike = isDone,
-                onLinkClick = onLinkClick,
-            ),
+        MarkdownRichText(
+            spans = spans,
             style = bodyStyle,
+            color = if (isDone) colors.textTertiary else colors.textPrimary,
+            onLinkClick = onLinkClick,
+            loadImage = loadImage,
             modifier = Modifier.weight(1f),
+            strike = isDone,
         )
     }
 }
@@ -166,6 +180,7 @@ internal fun MarkdownQuote(
     spans: List<InlineSpan>,
     scale: MarkdownTypeScale,
     onLinkClick: ((String) -> Unit)?,
+    loadImage: (suspend (String) -> Bitmap?)?,
 ) {
     val colors = MyNoteTheme.colors
     val dimens = MyNoteTheme.dimens
@@ -181,9 +196,12 @@ internal fun MarkdownQuote(
                 .clip(RoundedCornerShape(1.dp))
                 .background(colors.textPrimary),
         )
-        Text(
-            text = spans.toAnnotated(colors.textSecondary, strike = false, onLinkClick),
+        MarkdownRichText(
+            spans = spans,
             style = scale.applyTo(MyNoteTheme.text.body),
+            color = colors.textSecondary,
+            onLinkClick = onLinkClick,
+            loadImage = loadImage,
             modifier = Modifier.weight(1f),
         )
     }

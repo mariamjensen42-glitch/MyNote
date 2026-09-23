@@ -154,14 +154,50 @@ object MarkdownSourceEditor {
     }
 
     /**
-     * Writes a picture reference at the selection.
+     * Writes a picture reference where the selection is.
      *
-     * Whatever is selected becomes the alt text, which is what the author was describing anyway; with
-     * nothing selected the caret lands between the brackets so the description can be typed straight
-     * away.
+     * A selection becomes the alt text, which is what the author was already describing. With nothing
+     * selected the reference goes in as a block of its own, breaking the line around it when needed:
+     * a reference written at the caret without that break ends up *inside* the line it was typed on,
+     * so picking a picture at the end of `# 我的标题` produced `# 我的标题![](attachments/1.jpg)` — a
+     * picture in a heading rather than a picture under one. The author pressed 图片 to see a picture,
+     * and what they got was their heading distorted and no picture where they expected it.
+     *
+     * The front matter is stepped over rather than written into. It is metadata only as the file's
+     * first block, so a picture dropped above it demotes `created`, `tags` and `favorite` to prose —
+     * and a caret sits at the very top of the note as soon as it is opened, which makes that the
+     * first thing 图片 does, not a corner case. Editing the front matter itself is still the
+     * keyboard's business; this only refuses to *insert* in front of it.
      */
-    fun attachImage(text: String, start: Int, end: Int, reference: String): MarkdownEdit =
-        wrap(text, start, end, MarkdownSyntax.IMAGE_PREFIX, "]($reference)")
+    fun attachImage(text: String, start: Int, end: Int, reference: String): MarkdownEdit {
+        val from = maxOf(start.coerceIn(0, text.length), afterFrontMatter(text))
+        val to = end.coerceIn(from, text.length)
+        val open = MarkdownSyntax.IMAGE_PREFIX
+        val close = "]($reference)"
+
+        val selected = text.substring(from, to)
+        if (selected.isNotEmpty()) {
+            val updated = text.substring(0, from) + open + selected + close + text.substring(to)
+            return MarkdownEdit(updated, from + open.length + selected.length + close.length)
+        }
+
+        val lineStart = text.lastIndexOf('\n', from - 1) + 1
+        val lineEnd = text.indexOf('\n', from).let { if (it < 0) text.length else it }
+        val prefix = if (text.substring(lineStart, from).isBlank()) "" else "\n\n"
+        val suffix = if (text.substring(from, lineEnd).isBlank()) "" else "\n\n"
+
+        return MarkdownEdit(
+            text = text.substring(0, from) + prefix + open + close + suffix + text.substring(from),
+            selectionStart = from + prefix.length + open.length + close.length,
+        )
+    }
+
+    /** Where the note's body begins: past its front matter and the blank line that follows it. */
+    private fun afterFrontMatter(text: String): Int {
+        var index = FrontMatterParser.parse(text).bodyStartOffset
+        while (index < text.length && text[index] == '\n') index++
+        return index
+    }
 
     /**
      * Wraps the selection in [prefix]/[suffix], or inserts the pair with the caret between them when

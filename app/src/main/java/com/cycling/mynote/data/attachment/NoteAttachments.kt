@@ -9,6 +9,7 @@ import com.cycling.mynote.data.repo.RepoPathResolver
 import com.cycling.mynote.data.repo.RepoSession
 import com.cycling.mynote.data.saf.DocumentTreeStore
 import com.cycling.mynote.di.IoDispatcher
+import com.cycling.mynote.domain.repository.RepoRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
@@ -31,6 +32,7 @@ class NoteAttachments @Inject constructor(
     private val store: DocumentTreeStore,
     private val paths: RepoPathResolver,
     private val session: RepoSession,
+    private val repoRepository: RepoRepository,
     @IoDispatcher private val io: CoroutineDispatcher,
 ) {
 
@@ -64,6 +66,13 @@ class NoteAttachments @Inject constructor(
         // The walk to the attachment folder is cached per path, and a new file can change what
         // resolves; dropping it keeps the next lookup honest.
         paths.invalidate()
+
+        // The folder tree is a picture of the filesystem, and this just changed it — usually by
+        // creating the attachment folder itself. Without this the drawer keeps showing the tree it
+        // walked before the picture was filed, with no row for the folder the picture went into.
+        // A failed walk is tolerated: the picture is filed and the note's reference to it is good,
+        // so the only thing at stake is how soon the drawer catches up, which a later refresh does.
+        runCatching { repoRepository.refreshFolderTree() }
 
         if (folderPath.isEmpty()) unique else "$folderPath/$unique"
     }

@@ -55,6 +55,17 @@ interface RepoRepository {
 
     suspend fun createFolder(parentPath: String, name: String): String
 
+    /**
+     * Walks the folder again and republishes [observeFolderTree] and [observeStats] from what it
+     * found, without touching the index.
+     *
+     * The tree can only come from the filesystem — the index knows about notes, not about empty
+     * folders — so anything that can add a folder has to ask for this: filing an attachment creates
+     * `attachments/` on first use, and until the tree is walked again the drawer has no row for a
+     * folder the note's own picture is already stored in.
+     */
+    suspend fun refreshFolderTree()
+
     suspend fun folderExists(path: String): Boolean
 
     /** Creates `Inbox.md` and `日记/` if the repository has neither. */

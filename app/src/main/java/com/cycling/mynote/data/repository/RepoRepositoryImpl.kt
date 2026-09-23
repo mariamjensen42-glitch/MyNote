@@ -172,6 +172,11 @@ class RepoRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun refreshFolderTree() {
+        val uri = session.treeUriOrNull() ?: return
+        withContext(io) { scanAndPublish(uri) }
+    }
+
     override suspend fun folderExists(path: String): Boolean {
         val uri = session.treeUriOrNull() ?: return false
         if (path.isEmpty()) return true
