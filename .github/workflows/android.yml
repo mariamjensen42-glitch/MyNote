@@ -134,3 +134,10 @@ jobs:
             || gh release create "$tag" --title "$tag" --generate-notes
           # --clobber so a re-run replaces the asset instead of failing on the name it already has.
           gh release upload "$tag" app/build/outputs/apk/release/*.apk --clobber
+          # The checksum of the file that was *actually* attached. Two builds of one commit are not
+          # byte-identical (R8 and the zip are not bit-reproducible here), so a digest written by hand
+          # into the release notes goes stale the moment this job re-uploads the APK.
+          sha256sum app/build/outputs/apk/release/*.apk > "$RUNNER_TEMP/checksum.txt"
+          sed 's|app/build/outputs/apk/release/||' "$RUNNER_TEMP/checksum.txt" \
+            > "app/build/outputs/apk/release/$(basename "$(ls app/build/outputs/apk/release/*.apk)").sha256"
+          gh release upload "$tag" app/build/outputs/apk/release/*.sha256 --clobber
