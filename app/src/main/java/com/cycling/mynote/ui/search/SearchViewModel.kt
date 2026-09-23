@@ -12,6 +12,8 @@ import com.cycling.mynote.domain.repository.NoteRepository
 import com.cycling.mynote.domain.repository.RepoRepository
 import com.cycling.mynote.domain.repository.SearchRepository
 import com.cycling.mynote.domain.repository.SettingsRepository
+import com.cycling.mynote.ui.library.LibraryIntent
+import com.cycling.mynote.ui.library.LibraryIntents
 import com.cycling.mynote.ui.mvi.MviViewModel
 import com.cycling.mynote.ui.mvi.UiEffect
 import com.cycling.mynote.ui.mvi.UiEvent
@@ -123,6 +125,7 @@ class SearchViewModel @Inject constructor(
     private val repoRepository: RepoRepository,
     private val settingsRepository: SettingsRepository,
     private val timeFormatter: RelativeTimeFormatter,
+    private val libraryIntents: LibraryIntents,
 ) : MviViewModel<SearchState, SearchEvent, SearchEffect>(SearchState()) {
 
     private var searchJob: Job? = null
@@ -225,9 +228,13 @@ class SearchViewModel @Inject constructor(
 
                 "new-diary" -> sendEffect(SearchEffect.OpenDiary)
 
-                "new-folder" -> runCatching { repoRepository.createFolder("", "新建文件夹") }
-                    .onSuccess { sendEffect(SearchEffect.ShowMessage("已创建文件夹")) }
-                    .onFailure { sendEffect(SearchEffect.ShowMessage("创建文件夹失败")) }
+                // Named in the library's own dialog rather than created here: a folder invented with
+                // a fixed name could not be named, collided with itself, and looked like it had gone
+                // somewhere unexpected.
+                "new-folder" -> {
+                    libraryIntents.request(LibraryIntent.NEW_FOLDER)
+                    sendEffect(SearchEffect.OpenLibrary)
+                }
 
                 "rebuild-index" -> rebuildIndex(force = true)
 

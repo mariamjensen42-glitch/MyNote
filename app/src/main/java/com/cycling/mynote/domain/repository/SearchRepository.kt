@@ -45,6 +45,9 @@ interface SettingsRepository {
 
     suspend fun setSoftWrap(enabled: Boolean)
 
+    /** Where pictures picked in the editor are filed, as a path inside the repository. */
+    suspend fun setAttachmentFolder(folder: String)
+
     suspend fun setAutoSave(enabled: Boolean)
 
     suspend fun setCreateSampleNote(enabled: Boolean)

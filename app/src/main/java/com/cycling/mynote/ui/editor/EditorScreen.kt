@@ -1,7 +1,7 @@
 package com.cycling.mynote.ui.editor
 
-import android.content.ClipData
-import android.content.ClipboardManager
+import android.graphics.Bitmap
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -27,48 +27,52 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cycling.mynote.R
 import com.cycling.mynote.core.model.EditorViewMode
-import com.cycling.mynote.data.markdown.MarkdownDocument
-import com.cycling.mynote.data.markdown.MarkdownParser
-import com.cycling.mynote.ui.components.MarkdownPreview
-import com.cycling.mynote.ui.components.MyNoteAccentTag
-import com.cycling.mynote.ui.components.MyNoteConfirmDialog
-import com.cycling.mynote.ui.components.MyNoteDivider
+import com.cycling.mynote.markdown.MarkdownCommand
+import com.cycling.mynote.markdown.MarkdownCommands
+import com.cycling.mynote.markdown.MarkdownDocument
+import com.cycling.mynote.markdown.MarkdownEdit
+import com.cycling.mynote.markdown.MarkdownParser
+import com.cycling.mynote.markdown.MarkdownSourceEditor
 import com.cycling.mynote.ui.components.MyNoteIconButton
-import com.cycling.mynote.ui.components.MyNoteNameDialog
 import com.cycling.mynote.ui.components.MyNoteScreen
-import com.cycling.mynote.ui.components.MyNoteSwitch
 import com.cycling.mynote.ui.components.MyNoteSegmentedIconControl
 import com.cycling.mynote.ui.components.SaveChip
 import com.cycling.mynote.ui.icons.MyNoteIcons
+import com.cycling.mynote.ui.markdown.MarkdownPreview
+import com.cycling.mynote.ui.markdown.MarkdownSyntaxHighlighter
+import com.cycling.mynote.ui.markdown.MarkdownTypeScale
+import com.cycling.mynote.ui.markdown.iconFor
 import com.cycling.mynote.ui.mvi.EffectCollector
 import com.cycling.mynote.ui.theme.MyNoteTheme
-
-/** One button of the format toolbar: the glyph and the syntax it wraps the selection in. */
-private data class FormatAction(
-    val icon: ImageVector,
-    val label: String,
-    val prefix: String,
-    val suffix: String = "",
-    val linePrefix: String? = null,
-)
+import kotlinx.coroutines.launch
 
 /**
  * The Markdown editor.
@@ -77,9 +81,15 @@ private data class FormatAction(
  * parsed document, and `分屏` shows both. All three read the same [EditorState.raw], so switching
  * modes never round-trips through the file.
  *
- * The text field owns the cursor while the view model owns the text. That split is why the format
- * toolbar can edit the selection — it reads the field's own value — without the view model ever
- * holding a UI type.
+ * The design gives the note no metadata panel: the front matter is part of the source, so tags,
+ * `pinned` and `favorite` are read and edited where they live, and nothing else in the screen has to
+ * mirror them back.
+ *
+ * The screen owns the cursor, the view model owns the text, and every edit comes from
+ * [com.cycling.mynote.markdown]: the format toolbar, the checkbox in the preview, Enter inside a list
+ * and Tab on a selection are all one pure function of `(text, selection)` applied to the field. That
+ * is what keeps the view model free of a UI type while the field stays the only thing that knows
+ * where the caret is.
  */
 @Composable
 fun EditorScreen(
@@ -89,7 +99,6 @@ fun EditorScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val colors = MyNoteTheme.colors
     val dimens = MyNoteTheme.dimens
-    val context = LocalContext.current
 
     // The draft is local so the caret survives; it is re-seeded whenever a different note loads.
     var field by remember(state.noteId) { mutableStateOf(TextFieldValue(state.raw)) }
@@ -100,16 +109,11 @@ fun EditorScreen(
     EffectCollector(viewModel.effects) { effect ->
         when (effect) {
             EditorEffect.NavigateBack -> onBack()
-            is EditorEffect.CopyToClipboard -> {
-                val clipboard = context.getSystemService(ClipboardManager::class.java)
-                clipboard?.setPrimaryClip(ClipData.newPlainText("note", effect.text))
-            }
-
             is EditorEffect.ShowMessage -> Unit
         }
     }
 
-    val highlighter = remember(state.settings.font, colors) {
+    val highlighter = remember(colors) {
         MarkdownSyntaxHighlighter(
             accent = colors.accent,
             textPrimary = colors.textPrimary,
@@ -119,6 +123,54 @@ fun EditorScreen(
         )
     }
     val document = remember(state.raw) { MarkdownParser.parse(state.raw) }
+    val scale = MarkdownTypeScale.of(state.settings)
+    val mono = MyNoteTheme.text.monoBody
+    val sourceStyle = remember(scale, mono, colors) {
+        scale.applyTo(mono).copy(color = colors.textPrimary)
+    }
+
+    // Ticking a checkbox in the preview is an edit like any other, so it lands in the same field the
+    // source view types into and autosave behaves exactly as it does for a keystroke.
+    val applyEdit: (MarkdownEdit) -> Unit = { edit ->
+        field = field.applying(edit)
+        viewModel.onEvent(EditorEvent.BodyChanged(edit.text))
+    }
+
+    val scope = rememberCoroutineScope()
+    val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { picked ->
+        if (picked == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            // File the picture first, then write the reference to it. If filing fails the note still
+            // gets the syntax, which the user can point at a path themselves.
+            val reference = viewModel.attachImage(picked.toString())
+            val caret = field.selection.min..field.selection.max
+            applyEdit(
+                if (reference == null) {
+                    MarkdownCommands.apply(
+                        command = MarkdownCommands.ALL.single { it.id == "image" },
+                        text = field.text,
+                        start = caret.first,
+                        end = caret.last,
+                    )
+                } else {
+                    MarkdownSourceEditor.attachImage(field.text, caret.first, caret.last, reference)
+                },
+            )
+        }
+    }
+
+    // Every keystroke, plus the one thing that has to be inferred from it: Enter inside a list. A
+    // soft keyboard never sends Enter as a key event — the IME commits the line break straight into
+    // the field — so continuing the list has to hang off the text change to work on both.
+    val onDraftChange: (TextFieldValue) -> Unit = { updated ->
+        val previous = field
+        field = updated
+        viewModel.onEvent(EditorEvent.BodyChanged(updated.text))
+        if (updated.insertedLineBreakAfter(previous)) {
+            val edit = MarkdownSourceEditor.continueList(updated.text, updated.selection.start)
+            if (edit != null) applyEdit(edit)
+        }
+    }
 
     MyNoteScreen {
         EditorTopBar(
@@ -126,50 +178,44 @@ fun EditorScreen(
             fileName = state.fileName,
             saved = state.saved,
             saving = state.saving,
-            moreMenuOpen = state.moreMenuOpen,
+            viewMode = state.viewMode,
             onBack = { viewModel.onEvent(EditorEvent.BackRequested) },
-            onMore = { viewModel.onEvent(EditorEvent.MoreMenuToggled) },
+            onViewMode = { viewModel.onEvent(EditorEvent.ViewModeSelected(it)) },
         )
-
-        if (state.moreMenuOpen) {
-            EditorMoreMenu(
-                isFavorite = state.frontMatter.isFavorite,
-                isSaved = state.saved,
-                onSave = { viewModel.onEvent(EditorEvent.SaveRequested) },
-                onFavorite = { viewModel.onEvent(EditorEvent.FavoriteToggled) },
-                onCopyPlainText = { viewModel.onEvent(EditorEvent.CopyPlainTextRequested) },
-                onRename = { viewModel.onEvent(EditorEvent.RenameRequested) },
-                onDelete = { viewModel.onEvent(EditorEvent.DeleteRequested) },
-            )
-        }
 
         EditorSurface(
             state = state,
             document = document,
             field = field,
             highlighter = highlighter,
-            onFieldChange = { updated ->
-                field = updated
-                viewModel.onEvent(EditorEvent.BodyChanged(updated.text))
+            sourceStyle = sourceStyle,
+            onFieldChange = onDraftChange,
+            onEdit = applyEdit,
+            loadImage = viewModel::loadImage,
+            onToggleTask = { line ->
+                MarkdownSourceEditor.toggleTask(field.text, line)?.let { rewritten ->
+                    applyEdit(MarkdownEdit(rewritten, field.selection.start))
+                }
             },
-            onViewMode = { viewModel.onEvent(EditorEvent.ViewModeSelected(it)) },
             modifier = Modifier.weight(1f),
         )
 
-        MyNoteDivider()
-
-        MetadataPanel(
-            state = state,
-            onPinToggled = { viewModel.onEvent(EditorEvent.PinToggled) },
-            onAddTag = { viewModel.onEvent(EditorEvent.AddTagRequested) },
-            onRemoveTag = { viewModel.onEvent(EditorEvent.TagRemoved(it)) },
-        )
-
         FormatToolbar(
-            onInsert = { action ->
-                val (updated, _) = applyFormat(field, action)
-                field = updated
-                viewModel.onEvent(EditorEvent.BodyChanged(updated.text))
+            onCommand = { command ->
+                // 图片 is the one action that needs something from outside the note: a picture to
+                // file. Everything else is a pure edit of the text.
+                if (command.id == "image") {
+                    pickImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                } else {
+                    applyEdit(
+                        MarkdownCommands.apply(
+                            command = command,
+                            text = field.text,
+                            start = field.selection.min,
+                            end = field.selection.max,
+                        ),
+                    )
+                }
             },
         )
 
@@ -182,19 +228,47 @@ fun EditorScreen(
             )
         }
     }
-
-    EditorDialogs(state = state, onEvent = viewModel::onEvent)
 }
 
+private fun TextFieldValue.applying(edit: MarkdownEdit): TextFieldValue = TextFieldValue(
+    text = edit.text,
+    selection = TextRange(
+        edit.selectionStart.coerceIn(0, edit.text.length),
+        edit.selectionEnd.coerceIn(0, edit.text.length),
+    ),
+)
+
+/**
+ * True when this value differs from [previous] only by a line break inserted where the caret is —
+ * one more character, a caret just past it, and the text on either side untouched.
+ *
+ * Being this strict is what keeps the list continuation from firing on a paste, on a deletion, or on
+ * anything a user would not read as "pressed Enter here".
+ */
+private fun TextFieldValue.insertedLineBreakAfter(previous: TextFieldValue): Boolean {
+    if (!selection.collapsed) return false
+    if (text.length != previous.text.length + 1) return false
+    val caret = selection.start
+    if (caret <= 0 || text[caret - 1] != '\n') return false
+    return text.regionMatches(0, previous.text, 0, caret - 1) &&
+        text.regionMatches(caret, previous.text, caret - 1, text.length - caret)
+}
+
+/**
+ * The header: back, then who the note is — title, file and save state — and the view-mode switch.
+ *
+ * The mode switch sits up here rather than beside the note surface so the writing area is nothing
+ * but the text, which is what the design's editor frame shows.
+ */
 @Composable
 private fun EditorTopBar(
     title: String,
     fileName: String,
     saved: Boolean,
     saving: Boolean,
-    moreMenuOpen: Boolean,
+    viewMode: EditorViewMode,
     onBack: () -> Unit,
-    onMore: () -> Unit,
+    onViewMode: (EditorViewMode) -> Unit,
 ) {
     val colors = MyNoteTheme.colors
     val dimens = MyNoteTheme.dimens
@@ -209,7 +283,7 @@ private fun EditorTopBar(
                 bottom = dimens.gapRegular,
             ),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(dimens.gapRegular),
+        horizontalArrangement = Arrangement.spacedBy(dimens.gapMedium),
     ) {
         MyNoteIconButton(
             icon = MyNoteIcons.chevronLeft,
@@ -234,119 +308,32 @@ private fun EditorTopBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
             ) {
-                Icon(
-                    imageVector = MyNoteIcons.fileText,
-                    contentDescription = null,
-                    tint = colors.textTertiary,
-                    modifier = Modifier.size(dimens.iconExtraSmall),
-                )
                 Text(
                     text = fileName,
                     style = MyNoteTheme.text.monoMicro,
                     color = colors.textSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
                 SaveChip(saved = saved, saving = saving)
             }
         }
 
-        MyNoteIconButton(
-            icon = MyNoteIcons.ellipsisVertical,
-            contentDescription = stringResource(R.string.cd_more),
-            onClick = onMore,
-            tint = if (moreMenuOpen) colors.accent else colors.textSecondary,
+        MyNoteSegmentedIconControl(
+            options = listOf(
+                MyNoteIcons.pencilLine to EditorViewMode.SOURCE.label,
+                MyNoteIcons.columns2 to EditorViewMode.SPLIT.label,
+                MyNoteIcons.eye to EditorViewMode.PREVIEW.label,
+            ),
+            selectedIndex = viewMode.ordinal,
+            onSelect = { onViewMode(EditorViewMode.entries[it]) },
         )
-    }
-}
-
-@Composable
-private fun EditorMoreMenu(
-    isFavorite: Boolean,
-    isSaved: Boolean,
-    onSave: () -> Unit,
-    onFavorite: () -> Unit,
-    onCopyPlainText: () -> Unit,
-    onRename: () -> Unit,
-    onDelete: () -> Unit,
-) {
-    val colors = MyNoteTheme.colors
-    val dimens = MyNoteTheme.dimens
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            // Bottom margin so the open menu does not sit flush against the note surface below it.
-            .padding(start = dimens.gapLarge, end = dimens.gapLarge, bottom = dimens.gapRegular)
-            .clip(RoundedCornerShape(dimens.radiusMedium))
-            .background(colors.surfaceSunken),
-    ) {
-        // The only way to write the file when 自动保存 is off in settings.
-        if (!isSaved) {
-            MoreMenuRow(
-                icon = MyNoteIcons.save,
-                label = "立即保存",
-                tint = colors.accent,
-                onClick = onSave,
-            )
-            MyNoteDivider()
-        }
-        MoreMenuRow(
-            icon = MyNoteIcons.tag,
-            label = if (isFavorite) "取消收藏" else "收藏",
-            onClick = onFavorite,
-        )
-        MyNoteDivider()
-        MoreMenuRow(
-            icon = MyNoteIcons.wrapText,
-            label = "复制纯文本",
-            onClick = onCopyPlainText,
-        )
-        MyNoteDivider()
-        MoreMenuRow(
-            icon = MyNoteIcons.pencil,
-            label = stringResource(R.string.action_rename),
-            onClick = onRename,
-        )
-        MyNoteDivider()
-        MoreMenuRow(
-            icon = MyNoteIcons.trash2,
-            label = stringResource(R.string.action_delete),
-            tint = colors.danger,
-            onClick = onDelete,
-        )
-    }
-}
-
-@Composable
-private fun MoreMenuRow(
-    icon: ImageVector,
-    label: String,
-    onClick: () -> Unit,
-    tint: Color = MyNoteTheme.colors.textPrimary,
-) {
-    val dimens = MyNoteTheme.dimens
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = dimens.gapLarge, vertical = dimens.gapRegular),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(dimens.gapRegular),
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.size(dimens.iconMedium),
-        )
-        Text(text = label, style = MyNoteTheme.text.rowLabel, color = tint)
     }
 }
 
 /**
- * The note surface: stats and the view-mode switch, then the source, the preview, or both.
+ * The note surface: the source, the preview, or both.
  *
  * The preview is only parsed and composed in the modes that show it, so a keystroke in `编辑` mode
  * never pays for a Markdown parse.
@@ -357,49 +344,32 @@ private fun EditorSurface(
     document: MarkdownDocument,
     field: TextFieldValue,
     highlighter: MarkdownSyntaxHighlighter,
+    sourceStyle: TextStyle,
     onFieldChange: (TextFieldValue) -> Unit,
-    onViewMode: (EditorViewMode) -> Unit,
+    onEdit: (MarkdownEdit) -> Unit,
+    onToggleTask: (Int) -> Unit,
+    loadImage: suspend (String) -> Bitmap?,
     modifier: Modifier = Modifier,
 ) {
     val colors = MyNoteTheme.colors
-    val dimens = MyNoteTheme.dimens
+    val uriHandler = LocalUriHandler.current
+    val openLink = remember(uriHandler) { { url: String -> uriHandler.openUri(url) } }
 
     Column(
         modifier = modifier
             .fillMaxWidth()
             .background(colors.surface),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = dimens.gapCompact),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                text = stringResource(
-                    R.string.editor_stats,
-                    state.stats.lineCount,
-                    state.stats.characterCount,
-                ),
-                style = MyNoteTheme.text.meta,
-                color = colors.textTertiary,
-            )
-            MyNoteSegmentedIconControl(
-                options = listOf(
-                    MyNoteIcons.pencilLine to EditorViewMode.SOURCE.label,
-                    MyNoteIcons.columns2 to EditorViewMode.SPLIT.label,
-                    MyNoteIcons.eye to EditorViewMode.PREVIEW.label,
-                ),
-                selectedIndex = state.viewMode.ordinal,
-                onSelect = { onViewMode(EditorViewMode.entries[it]) },
-            )
-        }
-
-        MyNoteDivider()
-
         when (state.viewMode) {
-            EditorViewMode.SOURCE -> SourceEditor(field, highlighter, onFieldChange, Modifier.weight(1f))
+            EditorViewMode.SOURCE -> SourceEditor(
+                value = field,
+                highlighter = highlighter,
+                textStyle = sourceStyle,
+                softWrap = state.settings.softWrap,
+                onValueChange = onFieldChange,
+                onEdit = onEdit,
+                modifier = Modifier.weight(1f),
+            )
 
             EditorViewMode.PREVIEW -> MarkdownPreview(
                 document = document,
@@ -407,13 +377,19 @@ private fun EditorSurface(
                 modifier = Modifier
                     .weight(1f)
                     .verticalScroll(rememberScrollState()),
+                onToggleTask = onToggleTask,
+                onLinkClick = openLink,
+                loadImage = loadImage,
             )
 
             EditorViewMode.SPLIT -> Row(modifier = Modifier.weight(1f)) {
                 SourceEditor(
                     value = field,
                     highlighter = highlighter,
+                    textStyle = sourceStyle,
+                    softWrap = state.settings.softWrap,
                     onValueChange = onFieldChange,
+                    onEdit = onEdit,
                     modifier = Modifier.weight(1f),
                 )
                 Box(
@@ -429,113 +405,97 @@ private fun EditorSurface(
                         .weight(1f)
                         .verticalScroll(rememberScrollState()),
                     contentPadding = 12.dp,
+                    onToggleTask = onToggleTask,
+                    onLinkClick = openLink,
+                    loadImage = loadImage,
                 )
             }
         }
     }
 }
 
-/** The syntax-highlighted input itself. */
+/**
+ * The syntax-highlighted input itself.
+ *
+ * It also owns the two keys a plain text field cannot know about: Enter inside a list continues it,
+ * and Tab indents the selected lines. Both are offered to
+ * [com.cycling.mynote.markdown.MarkdownSourceEditor] first and fall through to the field when the
+ * caret is not somewhere they apply, so Enter at the end of a paragraph is still just a newline.
+ *
+ * With `软换行` off the field is laid out wider than the screen instead of wrapping, and the row
+ * around it scrolls sideways. The width comes from the longest line's character count times the
+ * monospace advance, measured rather than guessed: an exact width means the caret never sits past
+ * the end of the text, which is what would let the field scroll somewhere it should not.
+ */
 @Composable
 private fun SourceEditor(
     value: TextFieldValue,
     highlighter: MarkdownSyntaxHighlighter,
+    textStyle: TextStyle,
+    softWrap: Boolean,
     onValueChange: (TextFieldValue) -> Unit,
+    onEdit: (MarkdownEdit) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = MyNoteTheme.colors
-    val dimens = MyNoteTheme.dimens
-
-    BasicTextField(
-        value = value,
-        onValueChange = onValueChange,
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 14.dp, vertical = 13.dp),
-        textStyle = MyNoteTheme.text.monoBody.copy(color = colors.textPrimary),
-        cursorBrush = SolidColor(colors.accent),
-        visualTransformation = highlighter,
-        decorationBox = { inner ->
-            if (value.text.isEmpty()) {
-                Text(
-                    text = "开始写点什么…",
-                    style = MyNoteTheme.text.monoBody,
-                    color = colors.textTertiary,
-                )
-            }
-            inner()
-        },
-    )
-}
-
-/** Tags, the pin switch, and the format badge. */
-@Composable
-private fun MetadataPanel(
-    state: EditorState,
-    onPinToggled: () -> Unit,
-    onAddTag: () -> Unit,
-    onRemoveTag: (String) -> Unit,
-) {
-    val colors = MyNoteTheme.colors
-    val dimens = MyNoteTheme.dimens
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = dimens.gapRegular, start = dimens.gapLarge, end = dimens.gapLarge),
-        verticalArrangement = Arrangement.spacedBy(9.dp),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(dimens.gapCompact),
-        ) {
-            Text(
-                text = stringResource(R.string.editor_tags),
-                style = MyNoteTheme.text.screenSubtitle,
-                color = colors.textSecondary,
+    val fieldModifier = modifier
+        .fillMaxSize()
+        .onPreviewKeyEvent { event ->
+            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+            // Tab is the one editing key a soft keyboard has no equivalent for, so it is handled
+            // here; Enter is not, because on a phone it arrives as text rather than as a key.
+            if (event.key != Key.Tab) return@onPreviewKeyEvent false
+            onEdit(
+                MarkdownSourceEditor.indent(
+                    text = value.text,
+                    start = value.selection.min,
+                    end = value.selection.max,
+                    outdent = event.isShiftPressed,
+                ),
             )
-            state.frontMatter.tags.forEach { tag ->
-                MyNoteAccentTag(text = tag, onClick = { onRemoveTag(tag) })
-            }
-            MyNoteAccentTag(
-                text = stringResource(R.string.editor_add_tag),
-                outlined = true,
-                leadingIcon = MyNoteIcons.plus,
-                onClick = onAddTag,
-            )
+            true
         }
+        .padding(horizontal = 14.dp, vertical = 13.dp)
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(dimens.gapCompact),
-        ) {
-            Text(
-                text = stringResource(R.string.editor_pinned),
-                style = MyNoteTheme.text.screenSubtitle,
-                color = colors.textSecondary,
-            )
-            MyNoteSwitch(
-                checked = state.frontMatter.isPinned,
-                onCheckedChange = { onPinToggled() },
-                modifier = Modifier.size(width = 40.dp, height = 24.dp),
-            )
-            Box(Modifier.weight(1f))
-            Text(
-                text = stringResource(R.string.editor_format_badge),
-                style = MyNoteTheme.text.monoMicro,
-                color = colors.textTertiary,
-            )
+    val content: @Composable (Modifier) -> Unit = { layout ->
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = layout,
+            textStyle = textStyle,
+            cursorBrush = SolidColor(colors.accent),
+            visualTransformation = highlighter,
+            decorationBox = { inner ->
+                if (value.text.isEmpty()) {
+                    Text(
+                        text = "开始写点什么…",
+                        style = textStyle,
+                        color = colors.textTertiary,
+                    )
+                }
+                inner()
+            },
+        )
+    }
+
+    if (softWrap) {
+        content(fieldModifier)
+    } else {
+        val measurer = rememberTextMeasurer()
+        val advance = remember(measurer, textStyle) { measurer.measure("0", textStyle).size.width.toFloat() }
+        val width = remember(value.text, advance) {
+            val longest = value.text.split('\n').maxOfOrNull(String::length) ?: 0
+            (longest * advance).toInt() + 64
+        }
+        Box(modifier = Modifier.horizontalScroll(rememberScrollState())) {
+            content(fieldModifier.width(androidx.compose.ui.unit.Dp(width.toFloat())))
         }
     }
 }
 
-/** The ten format actions, each wrapping or prefixing the current selection. */
+/** The nine format actions, each wrapping or prefixing the current selection. */
 @Composable
-private fun FormatToolbar(onInsert: (FormatAction) -> Unit) {
+private fun FormatToolbar(onCommand: (MarkdownCommand) -> Unit) {
     val colors = MyNoteTheme.colors
     val dimens = MyNoteTheme.dimens
 
@@ -553,7 +513,7 @@ private fun FormatToolbar(onInsert: (FormatAction) -> Unit) {
                 .padding(horizontal = dimens.gapCompact),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            FORMAT_ACTIONS.forEach { action ->
+            MarkdownCommands.ALL.forEach { command ->
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -562,13 +522,13 @@ private fun FormatToolbar(onInsert: (FormatAction) -> Unit) {
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
-                            onClick = { onInsert(action) },
+                            onClick = { onCommand(command) },
                         ),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        imageVector = action.icon,
-                        contentDescription = action.label,
+                        imageVector = iconFor(command),
+                        contentDescription = command.label,
                         tint = colors.textSecondary,
                         modifier = Modifier.size(dimens.iconMedium),
                     )
@@ -577,84 +537,3 @@ private fun FormatToolbar(onInsert: (FormatAction) -> Unit) {
         }
     }
 }
-
-@Composable
-private fun EditorDialogs(state: EditorState, onEvent: (EditorEvent) -> Unit) {
-    when (val dialog = state.dialog) {
-        null -> Unit
-
-        EditorDialog.Rename -> MyNoteNameDialog(
-            title = stringResource(R.string.dialog_rename_title),
-            initialValue = state.title,
-            confirmLabel = stringResource(R.string.action_confirm),
-            onConfirm = { onEvent(EditorEvent.RenameConfirmed(it)) },
-            onDismissRequest = { onEvent(EditorEvent.DialogDismissed) },
-        )
-
-        EditorDialog.Delete -> MyNoteConfirmDialog(
-            title = stringResource(R.string.dialog_delete_title),
-            body = stringResource(R.string.dialog_delete_body, state.title),
-            confirmLabel = stringResource(R.string.action_delete),
-            onConfirm = { onEvent(EditorEvent.DeleteConfirmed) },
-            onDismissRequest = { onEvent(EditorEvent.DialogDismissed) },
-        )
-
-        EditorDialog.AddTag -> MyNoteNameDialog(
-            title = stringResource(R.string.editor_tags),
-            initialValue = "",
-            confirmLabel = stringResource(R.string.action_confirm),
-            onConfirm = { onEvent(EditorEvent.TagConfirmed(it)) },
-            onDismissRequest = { onEvent(EditorEvent.DialogDismissed) },
-            placeholder = state.availableTags.firstOrNull().orEmpty(),
-        )
-    }
-}
-
-/**
- * Wraps or prefixes the selection.
- *
- * Inline actions wrap the selected text and leave the caret after the inserted marker; block
- * actions prefix the whole line the caret is on. With an empty selection the markers are inserted
- * with the caret between them, so typing continues inside the emphasis.
- */
-private fun applyFormat(value: TextFieldValue, action: FormatAction): Pair<TextFieldValue, Int> {
-    val text = value.text
-    val start = value.selection.min.coerceIn(0, text.length)
-    val end = value.selection.max.coerceIn(0, text.length)
-
-    if (action.linePrefix != null) {
-        val lineStart = text.lastIndexOf('\n', (start - 1).coerceAtLeast(0))
-            .let { if (it < 0 || start == 0) 0 else it + 1 }
-        val already = text.startsWith(action.linePrefix, lineStart)
-        val updated = if (already) {
-            text.removeRange(lineStart, lineStart + action.linePrefix.length)
-        } else {
-            text.substring(0, lineStart) + action.linePrefix + text.substring(lineStart)
-        }
-        val caret = (start + if (already) -action.linePrefix.length else action.linePrefix.length)
-            .coerceIn(0, updated.length)
-        return TextFieldValue(updated, TextRange(caret)) to caret
-    }
-
-    val selected = text.substring(start, end)
-    val updated = text.substring(0, start) + action.prefix + selected + action.suffix + text.substring(end)
-    val caret = if (selected.isEmpty()) {
-        start + action.prefix.length
-    } else {
-        end + action.prefix.length + action.suffix.length
-    }
-    return TextFieldValue(updated, TextRange(caret)) to caret
-}
-
-/** Declared once so the toolbar's order and glyphs match the design exactly. */
-private val FORMAT_ACTIONS = listOf(
-    FormatAction(MyNoteIcons.heading1, "一级标题", "# ", linePrefix = "# "),
-    FormatAction(MyNoteIcons.bold, "加粗", "**", "**"),
-    FormatAction(MyNoteIcons.italic, "斜体", "*", "*"),
-    FormatAction(MyNoteIcons.list, "无序列表", "- ", linePrefix = "- "),
-    FormatAction(MyNoteIcons.listChecks, "任务列表", "- [ ] ", linePrefix = "- [ ] "),
-    FormatAction(MyNoteIcons.textQuote, "引用", "> ", linePrefix = "> "),
-    FormatAction(MyNoteIcons.code, "代码", "`", "`"),
-    FormatAction(MyNoteIcons.link, "链接", "[", "](url)"),
-    FormatAction(MyNoteIcons.image, "图片", "![", "](path)"),
-)

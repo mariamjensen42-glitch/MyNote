@@ -54,6 +54,7 @@ class PreferencesStore @Inject constructor(
         val FONT_SIZE = intPreferencesKey("editor_font_size")
         val LINE_HEIGHT = floatPreferencesKey("editor_line_height")
         val SOFT_WRAP = booleanPreferencesKey("editor_soft_wrap")
+        val ATTACHMENT_FOLDER = stringPreferencesKey("editor_attachment_folder")
         val AUTO_SAVE = booleanPreferencesKey("editor_auto_save")
 
         val REPO_TREE_URI = stringPreferencesKey("repo_tree_uri")
@@ -80,6 +81,8 @@ class PreferencesStore @Inject constructor(
             fontSizeSp = preferences[Keys.FONT_SIZE] ?: EditorSettings.DEFAULT_FONT_SIZE,
             lineHeight = preferences[Keys.LINE_HEIGHT] ?: EditorSettings.DEFAULT_LINE_HEIGHT,
             softWrap = preferences[Keys.SOFT_WRAP] ?: true,
+            attachmentFolder = preferences[Keys.ATTACHMENT_FOLDER]
+                ?: EditorSettings.DEFAULT_ATTACHMENT_FOLDER,
             autoSave = preferences[Keys.AUTO_SAVE] ?: true,
         )
     }
@@ -93,6 +96,8 @@ class PreferencesStore @Inject constructor(
     suspend fun setLineHeight(lineHeight: Float) = edit { it[Keys.LINE_HEIGHT] = lineHeight }
 
     suspend fun setSoftWrap(enabled: Boolean) = edit { it[Keys.SOFT_WRAP] = enabled }
+
+    suspend fun setAttachmentFolder(folder: String) = edit { it[Keys.ATTACHMENT_FOLDER] = folder }
 
     suspend fun setAutoSave(enabled: Boolean) = edit { it[Keys.AUTO_SAVE] = enabled }
 

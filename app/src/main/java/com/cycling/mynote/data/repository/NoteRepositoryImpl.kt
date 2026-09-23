@@ -9,9 +9,8 @@ import com.cycling.mynote.core.model.NoteFilter
 import com.cycling.mynote.core.model.NoteSort
 import com.cycling.mynote.data.index.NoteIndexDao
 import com.cycling.mynote.data.index.NoteIndexEntity
-import com.cycling.mynote.data.markdown.FrontMatterParser
-import com.cycling.mynote.data.markdown.NoteTextExtractor
-import com.cycling.mynote.data.markdown.stripInlineMarkdown
+import com.cycling.mynote.markdown.FrontMatterParser
+import com.cycling.mynote.markdown.MarkdownText
 import com.cycling.mynote.data.repo.NoteNaming
 import com.cycling.mynote.data.repo.RepoPathResolver
 import com.cycling.mynote.data.repo.RepoSession
@@ -65,17 +64,13 @@ class NoteRepositoryImpl @Inject constructor(
     override fun observeNote(noteId: String): Flow<Note?> =
         dao.observeByNoteId(noteId).map { it?.toNote() }
 
-    override fun observeAllTags(): Flow<List<String>> = dao.observeAll().map { entities ->
-        entities.flatMap { it.tags }.distinct().sorted()
-    }
-
     override suspend fun openNote(noteId: String): NoteDocument = withContext(io) {
         val uri = session.requireTreeUri()
         val entity = dao.findByNoteId(noteId)
         val documentId = entity?.documentId ?: paths.resolveDocumentId(uri, noteId)
         val raw = store.readText(uri, documentId)
         val parsed = FrontMatterParser.parse(raw)
-        val text = NoteTextExtractor.extract(raw, noteId.substringAfterLast('/'), parsed)
+        val text = MarkdownText.extract(raw, noteId.substringAfterLast('/'), parsed)
 
         NoteDocument(
             note = entity?.toNote() ?: Note(
@@ -276,8 +271,8 @@ class NoteRepositoryImpl @Inject constructor(
         val raw = store.readText(uri, documentId)
         val parsed = FrontMatterParser.parse(raw)
         val fileName = noteId.substringAfterLast('/')
-        val text = NoteTextExtractor.extract(raw, fileName, parsed)
-        val plainBody = plainBodyOf(raw.substring(parsed.bodyStartOffset.coerceIn(0, raw.length)))
+        val text = MarkdownText.extract(raw, fileName, parsed)
+        val plainBody = MarkdownText.searchBody(raw)
         val lastModified = System.currentTimeMillis()
 
         val entity = NoteIndexEntity(
@@ -311,24 +306,10 @@ class NoteRepositoryImpl @Inject constructor(
     /** Finds a file name that does not collide inside [parentId], appending ` 2`, ` 3`, … */
     private suspend fun uniqueFileName(uri: Uri, parentId: String, desired: String): String {
         val taken = store.listChildren(uri, parentId).mapTo(mutableSetOf()) { it.displayName }
-        if (desired !in taken) return desired
-
-        val base = desired.substringBeforeLast('.')
-        val extension = desired.substringAfterLast('.', "md")
-        var suffix = 2
-        while (true) {
-            val candidate = "$base $suffix.$extension"
-            if (candidate !in taken) return candidate
-            suffix++
-            if (suffix > MAX_NAME_ATTEMPTS) throw DataError.NameConflict(desired)
-        }
+        val name = NoteNaming.uniqueName(taken, desired)
+        if (name == desired || name in taken) throw DataError.NameConflict(desired)
+        return name
     }
-
-    private fun plainBodyOf(body: String): String = body
-        .lineSequence()
-        .map { stripInlineMarkdown(it.removePrefix("#").trimEnd()) }
-        .filter { it.isNotBlank() }
-        .joinToString("\n")
 
     private fun matchesFilter(note: Note, query: NoteQuery): Boolean {
         query.folderPath?.let { folder ->

@@ -2,6 +2,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!--
+        Pictures. A note may point at an http(s) image (`![](https://…)`), and the preview shows it;
+        that is the only thing in the app that uses the network, and only for a note that asks for it.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:name=".MyNoteApplication"
         android:allowBackup="true"

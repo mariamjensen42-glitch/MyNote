@@ -8,6 +8,7 @@ import android.provider.DocumentsContract
 import android.util.Log
 import com.cycling.mynote.core.error.DataError
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.ByteArrayOutputStream
 import java.io.FileNotFoundException
 import java.io.IOException
 import javax.inject.Inject
@@ -90,6 +91,35 @@ class DocumentTreeStore @Inject constructor(
     } catch (e: IOException) {
         throw DataError.Io("读取失败：$documentId", e)
     }
+
+    /**
+     * Reads a document's raw bytes, refusing anything larger than [maxBytes].
+     *
+     * The declared size is checked before reading, and the stream is read with the same ceiling
+     * afterwards, because a provider is free to report a length it does not honour. A note that
+     * points at a huge file should not be able to pull it into memory.
+     *
+     * @return the bytes, or `null` when the document is missing, unreadable or too large.
+     */
+    fun readBytes(treeUri: Uri, documentId: String, maxBytes: Int): ByteArray? = runCatching {
+        val uri = documentUri(treeUri, documentId)
+        val declared = query(uri, arrayOf(DocumentsContract.Document.COLUMN_SIZE)) { cursor ->
+            if (cursor.moveToFirst()) cursor.getLong(0) else -1L
+        }
+        if (declared > maxBytes) return null
+
+        resolver.openInputStream(uri)?.use { stream ->
+            val buffer = ByteArrayOutputStream()
+            val chunk = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val read = stream.read(chunk)
+                if (read < 0) break
+                if (buffer.size() + read > maxBytes) return null
+                buffer.write(chunk, 0, read)
+            }
+            buffer.toByteArray()
+        }
+    }.getOrNull()
 
     /**
      * Overwrites a document with [text].
@@ -191,7 +221,8 @@ class DocumentTreeStore @Inject constructor(
         return newDocumentId
     }
 
-    private fun writeBytes(treeUri: Uri, documentId: String, bytes: ByteArray) {
+    /** Writes raw bytes to an existing document, creating it first with [createFile] when needed. */
+    fun writeBytes(treeUri: Uri, documentId: String, bytes: ByteArray) {
         try {
             resolver.openOutputStream(documentUri(treeUri, documentId))?.use { it.write(bytes) }
                 ?: throw DataError.Io("无法写入目标文件：$documentId")

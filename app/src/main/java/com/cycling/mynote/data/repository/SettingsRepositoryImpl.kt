@@ -37,6 +37,9 @@ class SettingsRepositoryImpl @Inject constructor(
 
     override suspend fun setSoftWrap(enabled: Boolean) = preferences.setSoftWrap(enabled)
 
+    override suspend fun setAttachmentFolder(folder: String) =
+        preferences.setAttachmentFolder(folder.trim().trim('/'))
+
     override suspend fun setAutoSave(enabled: Boolean) = preferences.setAutoSave(enabled)
 
     override suspend fun setCreateSampleNote(enabled: Boolean) =

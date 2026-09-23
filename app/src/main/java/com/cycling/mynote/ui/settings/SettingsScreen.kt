@@ -33,6 +33,7 @@ import com.cycling.mynote.ui.components.MyNoteConfirmDialog
 import com.cycling.mynote.ui.components.MyNoteDivider
 import com.cycling.mynote.ui.components.MyNoteIconTile
 import com.cycling.mynote.ui.components.MyNoteListPickerDialog
+import com.cycling.mynote.ui.components.MyNoteNameDialog
 import com.cycling.mynote.ui.components.MyNoteScreen
 import com.cycling.mynote.ui.components.MyNoteSegmentedTextControl
 import com.cycling.mynote.ui.components.MyNoteTag
@@ -147,6 +148,7 @@ fun SettingsScreen(
                 SettingsRow(
                     label = stringResource(R.string.settings_font),
                     value = state.settings.font.label,
+                    detail = stringResource(R.string.settings_font_note),
                     showChevron = true,
                     onClick = { viewModel.onEvent(SettingsEvent.FontRequested) },
                 )
@@ -163,6 +165,14 @@ fun SettingsScreen(
                     value = formatLineHeight(state.settings.lineHeight),
                     showChevron = true,
                     onClick = { viewModel.onEvent(SettingsEvent.LineHeightRequested) },
+                )
+                MyNoteDivider()
+                SettingsRow(
+                    label = stringResource(R.string.settings_attachment_folder),
+                    value = state.settings.attachmentFolder,
+                    detail = stringResource(R.string.settings_attachment_folder_note),
+                    showChevron = true,
+                    onClick = { viewModel.onEvent(SettingsEvent.AttachmentFolderRequested) },
                 )
                 MyNoteDivider()
                 SettingsRow(
@@ -305,6 +315,14 @@ private fun SettingsDialogs(state: SettingsState, viewModel: SettingsViewModel) 
                     viewModel.onEvent(SettingsEvent.LineHeightConfirmed(it))
                 }
             },
+            onDismissRequest = { viewModel.onEvent(SettingsEvent.DialogDismissed) },
+        )
+
+        SettingsDialog.AttachmentFolder -> MyNoteNameDialog(
+            title = stringResource(R.string.settings_attachment_folder),
+            initialValue = state.settings.attachmentFolder,
+            confirmLabel = stringResource(R.string.action_confirm),
+            onConfirm = { viewModel.onEvent(SettingsEvent.AttachmentFolderConfirmed(it)) },
             onDismissRequest = { viewModel.onEvent(SettingsEvent.DialogDismissed) },
         )
 

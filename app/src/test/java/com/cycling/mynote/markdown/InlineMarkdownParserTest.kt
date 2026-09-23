@@ -1,4 +1,4 @@
-package com.cycling.mynote.data.markdown
+package com.cycling.mynote.markdown
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -17,6 +17,7 @@ private fun runs(text: String): List<Pair<String, String>> =
             if (span.code) append('c')
             if (span.strike) append('s')
             if (span.linkUrl != null) append("link:${span.linkUrl}")
+            if (span.imageUrl != null) append("img:${span.imageUrl}")
         } to span.text
     }
 
@@ -82,8 +83,31 @@ class InlineMarkdownParserTest {
     }
 
     @Test
-    fun `images render as bracketed alt text with the url`() {
-        assertEquals(listOf("link:p.png" to "[图]"), runs("![图](p.png)"))
+    fun `images carry their alt text and source url`() {
+        assertEquals(listOf("img:p.png" to "图"), runs("![图](p.png)"))
+    }
+
+    @Test
+    fun `a bare url becomes a link`() {
+        assertEquals(listOf("link:https://e.com" to "https://e.com"), runs("https://e.com"))
+    }
+
+    @Test
+    fun `a bare url stops before trailing punctuation`() {
+        assertEquals(
+            listOf("" to "见 ", "link:https://e.com" to "https://e.com", "" to "。"),
+            runs("见 https://e.com。"),
+        )
+    }
+
+    @Test
+    fun `a www address is linked with a scheme`() {
+        assertEquals(listOf("link:https://www.e.com" to "www.e.com"), runs("www.e.com"))
+    }
+
+    @Test
+    fun `a url inside a link label is not linked twice`() {
+        assertEquals(listOf("link:https://e.com" to "https://e.com"), runs("[https://e.com](https://e.com)"))
     }
 
     @Test
@@ -103,8 +127,27 @@ class InlineMarkdownParserTest {
     }
 
     @Test
-    fun `html tags are dropped but their content is kept`() {
-        assertEquals(listOf("" to "ab"), runs("a<br/>b"))
+    fun `html tags are dropped and split the run around them`() {
+        // Two runs rather than one text run spanning the tag: a run's source range is what the
+        // highlighter colours, and a range that covered the tag would style it as part of the prose.
+        assertEquals(listOf("" to "a", "" to "b"), runs("a<br/>b"))
+    }
+
+    @Test
+    fun `spans report the source range of the construct they came from`() {
+        val spans = InlineMarkdownParser.parse("a **bold** c")
+
+        val bold = spans.single { it.bold }
+        assertEquals("bold", bold.text)
+        // The markers belong to the construct, so the range covers `**bold**`.
+        assertEquals(2 to 10, bold.sourceStart to bold.sourceEnd)
+    }
+
+    @Test
+    fun `source ranges shift with the offset the line is parsed at`() {
+        val spans = InlineMarkdownParser.parse("**x**", baseOffset = 40)
+
+        assertEquals(40 to 45, spans.single().sourceStart to spans.single().sourceEnd)
     }
 
     @Test

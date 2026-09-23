@@ -177,5 +177,24 @@ object NoteNaming {
     /** `2025-03-12.md` for a diary entry on the given date. */
     fun diaryFileName(date: java.time.LocalDate): String = "$date.md"
 
+    /**
+     * [desired] itself when it is free, otherwise the same name with ` 2`, ` 3`, … before the
+     * extension. Two files with the same name cannot live in one folder, and silently overwriting
+     * one note — or one picture — with another is the worst way to resolve that.
+     */
+    fun uniqueName(taken: Set<String>, desired: String, maxAttempts: Int = MAX_NAME_ATTEMPTS): String {
+        if (desired !in taken) return desired
+
+        val base = desired.substringBeforeLast('.')
+        val extension = desired.substringAfterLast('.', "md")
+        for (suffix in 2..maxAttempts) {
+            val candidate = "$base $suffix.$extension"
+            if (candidate !in taken) return candidate
+        }
+        return "$base ${System.currentTimeMillis()}.$extension"
+    }
+
+    private const val MAX_NAME_ATTEMPTS = 50
+
     private const val MAX_NAME_LENGTH = 120
 }

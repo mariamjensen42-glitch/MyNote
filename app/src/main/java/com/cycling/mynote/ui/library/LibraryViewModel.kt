@@ -22,9 +22,11 @@ import com.cycling.mynote.ui.mvi.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import androidx.lifecycle.viewModelScope
 import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** A note plus its rendered relative timestamp, so the row does not reformat on every frame. */
@@ -165,6 +167,7 @@ class LibraryViewModel @Inject constructor(
     private val noteRepository: NoteRepository,
     private val repoRepository: RepoRepository,
     private val timeFormatter: RelativeTimeFormatter,
+    private val intents: LibraryIntents,
 ) : MviViewModel<LibraryState, LibraryEvent, LibraryEffect>(LibraryState()) {
 
     /**
@@ -173,15 +176,36 @@ class LibraryViewModel @Inject constructor(
      */
     val relativeTime: RelativeTimeFormatter get() = timeFormatter
 
+    /**
+     * Which folders the drawer has open.
+     *
+     * A flow rather than a plain state field because the drawer's rows are *derived* from it: when
+     * this only lived in the state, toggling a folder updated the set but nothing re-flattened the
+     * rows that are built from it, so the tree could not be collapsed at all.
+     */
+    private val expandedFolders = MutableStateFlow<Set<String>>(emptySet())
+
     init {
         combine(
             repoRepository.observeRepo(),
             noteRepository.observeNotes(),
             repoRepository.observeFolderTree(),
             repoRepository.observeIndexStatus(),
-        ) { repo, notes, tree, indexStatus ->
-            reduce(repo = repo, notes = notes, tree = tree, indexStatus = indexStatus)
+            expandedFolders,
+        ) { repo, notes, tree, indexStatus, expanded ->
+            reduce(repo = repo, notes = notes, tree = tree, indexStatus = indexStatus, expanded = expanded)
         }
+            .launchIn(viewModelScope)
+
+        // Requests from other screens — the command palette's "新建文件夹" — land in the same dialog
+        // the drawer opens, so a folder is always named and always created in the repository root.
+        intents.requests
+            .onEach { intent ->
+                when (intent) {
+                    LibraryIntent.NEW_FOLDER ->
+                        setState { copy(dialog = LibraryDialog.NewFolder("")) }
+                }
+            }
             .launchIn(viewModelScope)
 
         // An automatic refresh on open, recorded through the same path as a manual one so the
@@ -201,6 +225,7 @@ class LibraryViewModel @Inject constructor(
         notes: List<Note>,
         tree: FolderNode,
         indexStatus: IndexStatus,
+        expanded: Set<String>,
     ) {
         setState {
             val visible = notes.filter { it.matchesFilter(filter, activeFolderPath) }
@@ -212,7 +237,8 @@ class LibraryViewModel @Inject constructor(
                 loading = false,
                 indexStatus = indexStatus,
                 notes = visible,
-                treeEntries = TreeEntryFactory.flatten(tree, notes, expandedFolders),
+                expandedFolders = expanded,
+                treeEntries = TreeEntryFactory.flatten(tree, notes, expanded),
             )
         }
     }
@@ -220,7 +246,14 @@ class LibraryViewModel @Inject constructor(
     override fun onEvent(event: LibraryEvent) {
         when (event) {
             is LibraryEvent.FilterSelected -> setState {
-                copy(filter = event.filter, actionNoteId = null)
+                copy(
+                    filter = event.filter,
+                    // 全部 means everything. Without this, a folder picked in the drawer kept
+                    // filtering the list even after switching chips, and the drawer — the only place
+                    // that could clear it — offered no way back.
+                    activeFolderPath = if (event.filter == NoteFilter.ALL) null else activeFolderPath,
+                    actionNoteId = null,
+                )
             }
 
             LibraryEvent.SortToggled -> setState { copy(sort = sort.next()) }
@@ -261,14 +294,8 @@ class LibraryViewModel @Inject constructor(
 
             LibraryEvent.DrawerClosed -> setState { copy(drawerOpen = false, actionNoteId = null) }
 
-            is LibraryEvent.FolderToggled -> setState {
-                copy(
-                    expandedFolders = if (event.path in expandedFolders) {
-                        expandedFolders - event.path
-                    } else {
-                        expandedFolders + event.path
-                    },
-                )
+            is LibraryEvent.FolderToggled -> expandedFolders.update { open ->
+                if (event.path in open) open - event.path else open + event.path
             }
 
             is LibraryEvent.FolderSelected -> setState {
@@ -333,12 +360,8 @@ class LibraryViewModel @Inject constructor(
                 val name = event.name.trim()
                 if (name.isEmpty()) return@mutate
                 repoRepository.createFolder(event.parentPath, name)
-                setState {
-                    copy(
-                        dialog = null,
-                        expandedFolders = expandedFolders + event.parentPath,
-                    )
-                }
+                setState { copy(dialog = null) }
+                expandedFolders.update { it + event.parentPath }
             }
 
             is LibraryEvent.DialogDismissed -> setState { copy(dialog = null) }
@@ -360,11 +383,18 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Creates a note in the repository root, next to the folders rather than inside whichever folder
+     * happens to be filtered at the time.
+     *
+     * A new note going into the folder you are browsing sounds helpful, but it makes the same button
+     * put things in two different places — the drawer's 新建文件夹 always uses the root — and a note
+     * filed somewhere the user did not choose is worse than one they have to move.
+     */
     private fun createNote() {
         viewModelScope.launch {
             try {
-                val folder = currentState.activeFolderPath.orEmpty()
-                val note = noteRepository.createNote("未命名笔记", folder)
+                val note = noteRepository.createNote("未命名笔记")
                 sendEffect(LibraryEffect.OpenNote(note.id))
             } catch (e: com.cycling.mynote.core.error.DataError) {
                 sendEffect(LibraryEffect.ShowMessage(e.message ?: "新建笔记失败"))

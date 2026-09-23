@@ -33,17 +33,6 @@
     <string name="library_filter_folder">文件夹</string>
 
     <!-- 03 · 编辑器 -->
-    <string name="editor_mode_source">编辑</string>
-    <string name="editor_mode_split">分屏</string>
-    <string name="editor_mode_preview">预览</string>
-    <string name="editor_stats">%1$d 行 · %2$d 字</string>
-    <string name="editor_saved">已保存</string>
-    <string name="editor_saving">保存中</string>
-    <string name="editor_unsaved">未保存</string>
-    <string name="editor_tags">标签</string>
-    <string name="editor_add_tag">添加</string>
-    <string name="editor_pinned">置顶</string>
-    <string name="editor_format_badge">YAML</string>
 
     <!-- 04 · 搜索 / 命令面板 -->
     <string name="search_title">搜索</string>
@@ -70,10 +59,14 @@
     <string name="settings_release">断开仓库</string>
     <string name="settings_release_body">只解除本机授权，不会删除任何 .md 文件</string>
     <string name="settings_font">字体</string>
+    <!-- 字体只作用于界面文字与预览：编辑区的源码按设计稿固定为等宽。 -->
+    <string name="settings_font_note">界面与预览使用该字体，编辑区固定等宽</string>
     <string name="settings_font_size">字号</string>
     <string name="settings_line_height">行距</string>
     <string name="settings_soft_wrap">软换行</string>
     <string name="settings_auto_save">自动保存</string>
+    <string name="settings_attachment_folder">附件目录</string>
+    <string name="settings_attachment_folder_note">插入图片时，图片存到这里，笔记里只留引用</string>
     <string name="settings_rebuild_index">重建搜索索引</string>
     <string name="settings_index_status">上次构建 %1$s · %2$d 篇笔记</string>
     <string name="settings_index_never">尚未构建 · %1$d 篇笔记</string>
@@ -127,7 +120,6 @@
     <string name="dialog_delete_body">会从你的文件夹里删除 %1$s，这个操作无法撤销。</string>
     <string name="dialog_name_hint">名称</string>
     <string name="cd_back">返回</string>
-    <string name="cd_more">更多</string>
     <string name="cd_close">关闭</string>
     <string name="cd_folder_tree">文件夹树</string>
 </resources>

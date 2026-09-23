@@ -1,4 +1,4 @@
-package com.cycling.mynote.data.markdown
+package com.cycling.mynote.markdown
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -112,16 +112,90 @@ class MarkdownParserTest {
     }
 
     @Test
-    fun `plain text drops the markup but keeps the words`() {
-        val source = "# 标题\n\n**粗体** 与 [链接](https://e.com)\n"
-        assertEquals("标题\n粗体 与 链接", MarkdownParser.toPlainText(MarkdownParser.parse(source)))
-    }
-
-    @Test
-    fun `an unrecognised construct still renders its text`() {
-        // A table is not supported; it must degrade to a paragraph rather than vanish.
-        val blocks = MarkdownParser.parse("| a | b |\n| - | - |\n").blocks
+    fun `two pipes without a delimiter row are just a paragraph`() {
+        val blocks = MarkdownParser.parse("| a | b |\n不是分隔行\n").blocks
         assertTrue(blocks.all { it is MarkdownBlock.Paragraph })
         assertTrue(blocks.isNotEmpty())
     }
+
+    @Test
+    fun `a table is parsed from its header and delimiter row`() {
+        val source = """
+            | 名称 | 数量 |
+            | :--- | ---: |
+            | 苹果 | 3 |
+            | 梨 | 12 |
+        """.trimMargin()
+
+        val table = MarkdownParser.parse(source).blocks.single() as MarkdownBlock.Table
+
+        assertEquals(listOf("名称", "数量"), table.header.map { cell -> cell.text() })
+        assertEquals(
+            listOf(MarkdownBlock.Table.Alignment.START, MarkdownBlock.Table.Alignment.END),
+            table.alignments,
+        )
+        assertEquals(2, table.rows.size)
+        assertEquals("梨", table.rows[1][0].text())
+    }
+
+    @Test
+    fun `table rows are normalised to the header's width`() {
+        val source = "| a | b |\n| - | - |\n| 只有一格 |\n| 一 | 二 | 三 |\n"
+
+        val table = MarkdownParser.parse(source).blocks.single() as MarkdownBlock.Table
+
+        // A short row is padded with an empty cell, a long one is cut down to the declared columns.
+        assertEquals(listOf("只有一格", ""), table.rows[0].map { it.text() })
+        assertEquals(listOf("一", "二"), table.rows[1].map { it.text() })
+    }
+
+    @Test
+    fun `a table can be written without the outer pipes`() {
+        val source = "a | b\n--- | ---\n1 | 2\n"
+
+        val table = MarkdownParser.parse(source).blocks.single() as MarkdownBlock.Table
+        assertEquals(2, table.header.size)
+        assertEquals(2, table.rows.single().size)
+    }
+
+    @Test
+    fun `inline emphasis inside a cell is parsed`() {
+        val source = "| a |\n| - |\n| **粗** |\n"
+
+        val table = MarkdownParser.parse(source).blocks.single() as MarkdownBlock.Table
+        val cell = table.rows.single().single()
+
+        assertEquals("粗", cell.single().text)
+        assertTrue(cell.single().bold)
+    }
+
+    @Test
+    fun `a table ends at the first line without a pipe`() {
+        val source = "| a |\n| - |\n| 1 |\n\n之后的段落\n"
+
+        val blocks = MarkdownParser.parse(source).blocks
+        assertEquals(1, (blocks[0] as MarkdownBlock.Table).rows.size)
+        assertTrue(blocks[1] is MarkdownBlock.Paragraph)
+    }
+
+    @Test
+    fun `a paragraph of pictures is recognised as pictures`() {
+        // Two images on consecutive lines are one paragraph, and the newline between them must not
+        // make it look like prose.
+        val blocks = MarkdownParser.parse("![a](a.png)\n![b](b.png)\n").blocks
+        val paragraph = blocks.single() as MarkdownBlock.Paragraph
+
+        assertTrue(paragraph.spans.isImageOnly())
+        assertEquals(listOf("a.png" to "a", "b.png" to "b"), paragraph.spans.images())
+    }
+
+    @Test
+    fun `a picture with text beside it is not a picture block`() {
+        val blocks = MarkdownParser.parse("看这个 ![a](a.png)\n").blocks
+        val paragraph = blocks.single() as MarkdownBlock.Paragraph
+
+        assertTrue(!paragraph.spans.isImageOnly())
+    }
+
+    private fun List<InlineSpan>.text(): String = joinToString("") { it.text }
 }

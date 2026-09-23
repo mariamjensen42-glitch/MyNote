@@ -1,4 +1,4 @@
-package com.cycling.mynote.data.markdown
+package com.cycling.mynote.markdown
 
 import com.cycling.mynote.core.model.FrontMatter
 import org.junit.Assert.assertEquals

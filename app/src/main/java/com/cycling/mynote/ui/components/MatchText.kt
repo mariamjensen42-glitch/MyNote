@@ -76,16 +76,3 @@ fun SearchResultTitle(
         )
     }
 }
-
-/** Builds an [AnnotatedString] for callers that need one outside a composable. */
-fun List<MatchRun>.toAnnotatedString(accent: Color): AnnotatedString = buildAnnotatedString {
-    forEach { run ->
-        if (run.isMatch) {
-            withStyle(SpanStyle(color = accent, fontWeight = FontWeight.SemiBold)) {
-                append(run.text)
-            }
-        } else {
-            append(run.text)
-        }
-    }
-}

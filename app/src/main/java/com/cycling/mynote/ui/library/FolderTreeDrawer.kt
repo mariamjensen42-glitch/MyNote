@@ -14,15 +14,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -90,7 +91,6 @@ fun FolderTreeDrawer(
         modifier = modifier
             .width(DRAWER_WIDTH)
             .fillMaxHeight()
-            .background(colors.surface)
             .padding(horizontal = dimens.gapLarge, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(dimens.gapRegular),
     ) {
@@ -308,30 +308,40 @@ private fun TreeFolderRow(
             .height(34.dp)
             .clip(RoundedCornerShape(dimens.radiusSmall))
             .background(if (isActive) colors.accentTint else Color.Transparent)
-            .clickable(onClick = onSelect)
+            // The whole row is the target: tapping a folder in a tree opens and closes it, and a row
+            // that only responded on its chevron read as one that could not be collapsed. Filtering
+            // the note list to a folder — the drawer's other use for a folder — moved to a long
+            // press, which is how the note rows beside it already reveal their extra actions.
+            .then(
+                if (entry.hasChildren) {
+                    Modifier.combinedClickable(onClick = onToggle, onLongClick = onSelect)
+                } else {
+                    // Nothing to open, so the row's only meaningful action is filtering to it.
+                    Modifier.clickable(onClick = onSelect)
+                },
+            )
             .padding(horizontal = dimens.gapCompact),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(dimens.gapCompact),
     ) {
         Spacer(Modifier.width((entry.depth * 16).dp))
-        Icon(
-            imageVector = if (entry.isExpanded) MyNoteIcons.chevronDown else MyNoteIcons.chevronRight,
-            contentDescription = null,
-            tint = colors.textTertiary,
-            modifier = Modifier
-                .size(dimens.iconSmall)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onToggle,
-                ),
-        )
-        Icon(
-            imageVector = MyNoteIcons.folder,
-            contentDescription = null,
-            tint = colors.textSecondary,
-            modifier = Modifier.size(dimens.iconCompact),
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(dimens.gapCompact),
+        ) {
+            Icon(
+                imageVector = if (entry.isExpanded) MyNoteIcons.chevronDown else MyNoteIcons.chevronRight,
+                contentDescription = null,
+                tint = colors.textTertiary,
+                modifier = Modifier.size(dimens.iconSmall),
+            )
+            Icon(
+                imageVector = MyNoteIcons.folder,
+                contentDescription = null,
+                tint = colors.textSecondary,
+                modifier = Modifier.size(dimens.iconCompact),
+            )
+        }
         Text(
             text = entry.name,
             style = MyNoteTheme.text.bodyTight,
@@ -476,13 +486,20 @@ fun LibraryWithDrawer(
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding())
                     .shadow(
                         elevation = 12.dp,
                         shape = RectangleShape,
                         ambientColor = Color.Black.copy(alpha = 0.12f),
                         spotColor = Color.Black.copy(alpha = 0.12f),
-                    ),
+                    )
+                    // The surface is painted before the insets, so the panel reaches the status bar
+                    // and the bottom edge instead of stopping short of them, while the drawer's own
+                    // content is still inset by both. The drawer is drawn beside `MyNoteScreen`
+                    // rather than inside it, so it has to do this for itself — including the
+                    // keyboard, which otherwise covers its action rows.
+                    .background(MyNoteTheme.colors.surface)
+                    .windowInsetsPadding(WindowInsets.systemBars)
+                    .imePadding(),
             ) {
                 FolderTreeDrawer(
                     state = state,

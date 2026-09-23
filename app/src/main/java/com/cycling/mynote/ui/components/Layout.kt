@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
@@ -36,9 +37,10 @@ import com.cycling.mynote.ui.theme.MyNoteTheme
  * full remaining height while letting the FAB anchor to its bottom-right without overlapping the
  * tab bar.
  *
- * Insets are consumed here so no screen has to reason about the status bar, and the bottom uses
- * `systemBars` only for the navigation bar — the tab bar already carries the design's own bottom
- * padding.
+ * Insets are consumed here so no screen has to reason about the status bar or the keyboard. The
+ * window is edge-to-edge, so the system does not resize it for the keyboard: the IME inset is what
+ * lifts the bottom of a screen — the editor's format toolbar and the tab capsule — above it, and
+ * `imePadding` after the system bars is what keeps the navigation bar from being counted twice.
  */
 @Composable
 fun MyNoteScreen(
@@ -52,7 +54,8 @@ fun MyNoteScreen(
         modifier = modifier
             .fillMaxSize()
             .background(MyNoteTheme.colors.bg)
-            .windowInsetsPadding(WindowInsets.systemBars),
+            .windowInsetsPadding(WindowInsets.systemBars)
+            .imePadding(),
     ) {
         Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
             Column(modifier = Modifier.fillMaxSize()) { content() }

@@ -108,4 +108,30 @@ class TreeEntryFactoryTest {
         val empty = FolderNode(name = "", path = "", noteCount = 0, children = emptyList())
         assertTrue(TreeEntryFactory.flatten(empty, emptyList(), emptySet()).isEmpty())
     }
+
+    @Test
+    fun `a folder's count comes from the notes, not from the last scan`() {
+        // The structure is the scanner's, so a folder created or filled since that scan still says 0
+        // there. The count has to agree with the rows underneath it, which are the index's.
+        val stale = FolderNode(
+            name = "",
+            path = "",
+            noteCount = 0,
+            children = listOf(FolderNode(name = "日记", path = "日记", noteCount = 0, children = emptyList())),
+        )
+
+        val rows = TreeEntryFactory.flatten(stale, notes, expanded = emptySet())
+        val diary = rows.single { it.path == "日记" } as TreeEntry.Folder
+
+        // Both the folder's own note and the one nested a level deeper count towards it.
+        assertEquals(2, diary.noteCount)
+    }
+
+    @Test
+    fun `a nested folder's count only covers what is beneath it`() {
+        val rows = TreeEntryFactory.flatten(tree, notes, expanded = setOf("日记"))
+        val nested = rows.single { it.path == "日记/2025-03" } as TreeEntry.Folder
+
+        assertEquals(1, nested.noteCount)
+    }
 }

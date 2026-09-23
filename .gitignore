@@ -37,3 +37,4 @@ tools/icons/lucide-cache/
 
 # Local tool session state — not part of the project
 .mimosa/
+.zcode/

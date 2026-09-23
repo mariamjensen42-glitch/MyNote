@@ -34,6 +34,8 @@ sealed interface SettingsDialog {
 
     data object LineHeight : SettingsDialog
 
+    data object AttachmentFolder : SettingsDialog
+
     data object ReleaseRepo : SettingsDialog
 }
 
@@ -77,6 +79,10 @@ sealed interface SettingsEvent : UiEvent {
     data object LineHeightRequested : SettingsEvent
 
     data class LineHeightConfirmed(val lineHeight: Float) : SettingsEvent
+
+    data object AttachmentFolderRequested : SettingsEvent
+
+    data class AttachmentFolderConfirmed(val folder: String) : SettingsEvent
 
     data object SoftWrapToggled : SettingsEvent
 
@@ -186,6 +192,16 @@ class SettingsViewModel @Inject constructor(
             is SettingsEvent.LineHeightConfirmed -> {
                 setState { copy(dialog = null) }
                 viewModelScope.launch { settingsRepository.setLineHeight(event.lineHeight) }
+            }
+
+            SettingsEvent.AttachmentFolderRequested ->
+                setState { copy(dialog = SettingsDialog.AttachmentFolder) }
+
+            is SettingsEvent.AttachmentFolderConfirmed -> {
+                setState { copy(dialog = null) }
+                if (event.folder.isNotBlank()) {
+                    viewModelScope.launch { settingsRepository.setAttachmentFolder(event.folder) }
+                }
             }
 
             SettingsEvent.SoftWrapToggled -> viewModelScope.launch {

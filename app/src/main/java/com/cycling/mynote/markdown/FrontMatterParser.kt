@@ -1,4 +1,4 @@
-package com.cycling.mynote.data.markdown
+package com.cycling.mynote.markdown
 
 import com.cycling.mynote.core.model.FrontMatter
 
@@ -10,13 +10,11 @@ import com.cycling.mynote.core.model.FrontMatter
  * keys the app actually models are parsed into typed values, and those accept the handful of
  * spellings people commonly write (`tags` as a flow list or a block list, `tag`/`keywords` as
  * aliases for it, and so on).
+ *
+ * The delimiters and the `key: value` form it recognises come from [MarkdownSyntax], so the
+ * highlighter colours the same block this reads.
  */
 object FrontMatterParser {
-
-    private val OPENING = Regex("""^---\s*$""")
-    private val CLOSING = Regex("""^(---|\.\.\.)\s*$""")
-    private val KEY_VALUE = Regex("""^([A-Za-z0-9_.-]+)\s*:\s*(.*)$""")
-    private val LIST_ITEM = Regex("""^\s*-\s+(.*)$""")
 
     private val TAG_KEYS = setOf("tags", "tag", "keywords")
     private val ALIAS_KEYS = setOf("aliases", "alias")
@@ -31,12 +29,13 @@ object FrontMatterParser {
      */
     fun parse(markdown: String): ParseResult {
         val lines = splitLines(markdown)
-        if (lines.isEmpty() || !OPENING.matches(lines[0].text)) {
+        if (lines.isEmpty() || !MarkdownSyntax.FRONT_MATTER_OPENING.matches(lines[0].text)) {
             return ParseResult(FrontMatter.EMPTY, 0)
         }
 
-        val closingIndex = (1 until lines.size).firstOrNull { CLOSING.matches(lines[it].text) }
-            ?: return ParseResult(FrontMatter.EMPTY, 0)
+        val closingIndex = (1 until lines.size).firstOrNull {
+            MarkdownSyntax.FRONT_MATTER_CLOSING.matches(lines[it].text)
+        } ?: return ParseResult(FrontMatter.EMPTY, 0)
 
         val block = lines.subList(1, closingIndex).map { it.text }
         val frontMatter = parseBlock(block)
@@ -80,7 +79,7 @@ object FrontMatterParser {
         var index = 0
         while (index < block.size) {
             val line = block[index]
-            val match = KEY_VALUE.matchEntire(line)
+            val match = MarkdownSyntax.FRONT_MATTER_ENTRY.matchEntire(line)
             if (match == null) {
                 // A comment, a blank line, or a continuation of something already consumed.
                 if (line.isNotBlank()) unknown += line
@@ -96,7 +95,7 @@ object FrontMatterParser {
             val blockItems = mutableListOf<String>()
             var cursor = index + 1
             while (cursor < block.size && rawValue.isEmpty()) {
-                val item = LIST_ITEM.matchEntire(block[cursor]) ?: break
+                val item = MarkdownSyntax.FRONT_MATTER_LIST_ITEM.matchEntire(block[cursor]) ?: break
                 blockItems += unquote(item.groupValues[1].trim())
                 cursor++
             }

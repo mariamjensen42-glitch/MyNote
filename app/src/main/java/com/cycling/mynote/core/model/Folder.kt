@@ -67,6 +67,12 @@ enum class NoteAction(val label: String) {
  * Folders come before the notes they contain, and notes appear under a folder only once that
  * folder is in [expanded]. Notes sitting in the repository root are listed last, at depth 0, so a
  * stray file in the root is always reachable without expanding anything.
+ *
+ * Counts are derived from [notes] rather than read off [root]'s own `noteCount`s. The folder
+ * *structure* has to come from the last filesystem scan — that is the only thing that knows about
+ * empty folders — but the number beside a row has to agree with the rows under it, and those rows
+ * are the index's. A scan-derived count next to a note created since that scan showed `0` beside a
+ * folder that visibly contained a file.
  */
 object TreeEntryFactory {
 
@@ -76,6 +82,7 @@ object TreeEntryFactory {
         expanded: Set<String>,
     ): List<TreeEntry> {
         val notesByFolder = notes.groupBy { it.folder }
+        val counts = countsByFolder(notes)
         val rows = mutableListOf<TreeEntry>()
 
         fun noteRows(folderPath: String, depth: Int) {
@@ -98,7 +105,7 @@ object TreeEntryFactory {
                 path = folder.path,
                 depth = depth,
                 name = folder.name,
-                noteCount = folder.noteCount,
+                noteCount = counts[folder.path] ?: 0,
                 isExpanded = isExpanded,
                 hasChildren = folder.children.isNotEmpty() || notesByFolder.containsKey(folder.path),
             )
@@ -110,5 +117,24 @@ object TreeEntryFactory {
         root.children.sortedBy { it.name }.forEach { visit(it, 0) }
         noteRows("", 0)
         return rows
+    }
+
+    /**
+     * How many notes sit in each folder, counting everything beneath it.
+     *
+     * A note counts towards every ancestor, so the number is what expanding that folder would
+     * reveal.
+     */
+    private fun countsByFolder(notes: List<Note>): Map<String, Int> {
+        val counts = mutableMapOf<String, Int>()
+        notes.forEach { note ->
+            var folder = note.folder
+            while (true) {
+                counts[folder] = (counts[folder] ?: 0) + 1
+                if (folder.isEmpty()) break
+                folder = folder.substringBeforeLast('/', "")
+            }
+        }
+        return counts
     }
 }

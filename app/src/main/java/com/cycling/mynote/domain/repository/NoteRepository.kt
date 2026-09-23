@@ -36,8 +36,6 @@ interface NoteRepository {
 
     fun observeNote(noteId: String): Flow<Note?>
 
-    fun observeAllTags(): Flow<List<String>>
-
     suspend fun openNote(noteId: String): NoteDocument
 
     /** Writes [raw] and returns the note as it now reads. */

@@ -42,12 +42,20 @@ data class EditorSettings(
     val lineHeight: Float = DEFAULT_LINE_HEIGHT,
     val softWrap: Boolean = true,
     val autoSave: Boolean = true,
+    /**
+     * Where a picture picked with the toolbar's 图片 button is filed, as a path inside the
+     * repository. Pictures are referenced from the note, never inlined into it, so the markdown file
+     * stays readable on its own — the same arrangement Obsidian calls the attachment folder.
+     */
+    val attachmentFolder: String = DEFAULT_ATTACHMENT_FOLDER,
 ) {
     companion object {
         const val DEFAULT_FONT_SIZE = 16
         const val MIN_FONT_SIZE = 12
         const val MAX_FONT_SIZE = 24
         const val FONT_SIZE_STEP = 1
+
+        const val DEFAULT_ATTACHMENT_FOLDER = "attachments"
 
         const val DEFAULT_LINE_HEIGHT = 1.6f
         const val MIN_LINE_HEIGHT = 1.2f

@@ -2,9 +2,8 @@ package com.cycling.mynote.data.index
 
 import android.net.Uri
 import com.cycling.mynote.core.error.DataError
-import com.cycling.mynote.data.markdown.FrontMatterParser
-import com.cycling.mynote.data.markdown.NoteTextExtractor
-import com.cycling.mynote.data.markdown.stripInlineMarkdown
+import com.cycling.mynote.markdown.FrontMatterParser
+import com.cycling.mynote.markdown.MarkdownText
 import com.cycling.mynote.data.repo.ScanResult
 import com.cycling.mynote.data.repo.ScannedNote
 import com.cycling.mynote.data.saf.DocumentTreeStore
@@ -132,8 +131,8 @@ class NoteIndexer @Inject constructor(
     private fun index(treeUri: Uri, note: ScannedNote): NoteIndexEntity {
         val raw = store.readText(treeUri, note.documentId)
         val parsed = FrontMatterParser.parse(raw)
-        val text = NoteTextExtractor.extract(raw, note.fileName, parsed)
-        val plainBody = toPlainBody(raw.substring(parsed.bodyStartOffset.coerceIn(0, raw.length)))
+        val text = MarkdownText.extract(raw, note.fileName, parsed)
+        val plainBody = MarkdownText.searchBody(raw)
 
         return NoteIndexEntity(
             noteId = note.relativePath,
@@ -154,12 +153,6 @@ class NoteIndexer @Inject constructor(
             indexedAt = System.currentTimeMillis(),
         )
     }
-
-    private fun toPlainBody(body: String): String = body
-        .lineSequence()
-        .map { stripInlineMarkdown(it.removePrefix("#").trimEnd()) }
-        .filter { it.isNotBlank() }
-        .joinToString("\n")
 
     private fun buildSearchText(
         title: String,
